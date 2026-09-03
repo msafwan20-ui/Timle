@@ -449,6 +449,26 @@
   @media (prefers-reduced-motion: reduce){
     *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
   }
+
+  /* ---------- responsive scale-up for larger viewports ---------- */
+  @media (min-width: 640px){
+    .wrap{ max-width:560px; padding-top:40px; }
+    .wordmark{ font-size:22px; }
+    .target-value{ font-size:60px; }
+    .dial{ width:272px; height:272px; }
+    .dial-readout{ font-size:38px; }
+    .result{ padding:26px; }
+  }
+
+  @media (min-width: 1024px){
+    body{ align-items:flex-start; padding-top:5vh; }
+    .wrap{ max-width:620px; padding-top:0; }
+    .wordmark{ font-size:24px; }
+    .target-value{ font-size:68px; }
+    .dial{ width:312px; height:312px; }
+    .dial-readout{ font-size:42px; }
+    .tabbar{ margin-top:32px; }
+  }
 </style>
 </head>
 <body>
