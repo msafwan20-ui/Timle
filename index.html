@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -313,6 +312,7 @@
     font-size:22px;
     font-weight:600;
   }
+  .result-tier-name.perfect{ color:#FFD54A; }
   .result-tier-name.frozen{ color:var(--mint); }
   .result-tier-name.sharp{ color:var(--mint); }
   .result-tier-name.close{ color:var(--amber); }
@@ -405,6 +405,9 @@
     color:var(--paper);
     box-shadow:0 0 0 4px var(--green-soft);
   }
+  .round-dot.done-perfect{
+    background:#FFD54A; border-color:#FFD54A; color:#1A1104;
+  }
   .round-dot.done-frozen, .round-dot.done-sharp{
     background:var(--mint); border-color:var(--mint); color:#04241A;
   }
@@ -436,6 +439,78 @@
     color:var(--paper-dim);
   }
   .day-summary-row b{ color:var(--paper); font-weight:600; }
+
+  /* archive banner */
+  .archive-banner{
+    display:none;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    width:100%;
+    margin-top:18px;
+    padding:10px 14px;
+    border-radius:10px;
+    border:1px solid var(--amber);
+    background:var(--amber-soft);
+    font-size:12px;
+    color:var(--paper);
+  }
+  .archive-banner button{
+    font-family:inherit;
+    font-size:12px;
+    font-weight:600;
+    padding:6px 12px;
+    border-radius:7px;
+    border:1px solid var(--amber);
+    background:transparent;
+    color:var(--amber);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+
+  /* archives list */
+  .archive-note{
+    width:100%;
+    text-align:center;
+    font-size:13px;
+    color:var(--paper-dim);
+    margin-top:22px;
+    padding:12px 14px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--panel);
+  }
+  .archive-list{
+    width:100%;
+    margin-top:16px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .archive-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 14px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--panel);
+    cursor:pointer;
+    font-size:13px;
+    transition: border-color 0.15s ease;
+  }
+  .archive-row:hover{ border-color:var(--paper-faint); }
+  .archive-row .arch-date{ color:var(--paper); font-weight:600; }
+  .archive-row .arch-puzzle{ color:var(--paper-dim); font-size:12px; margin-top:2px; }
+  .archive-row .arch-status{ font-size:12px; color:var(--paper-faint); }
+  .archive-row .arch-status.done{ color:var(--mint); }
+  .archive-empty{
+    width:100%;
+    text-align:center;
+    font-size:13px;
+    color:var(--paper-faint);
+    margin-top:24px;
+  }
 
   .actions{
     display:flex;
@@ -551,6 +626,10 @@
       Guess It
       <span class="tab-sub">start → beep → estimate</span>
     </button>
+    <button class="tab" id="tabArchive" role="tab" aria-selected="false" aria-controls="panelArchive">
+      Archives
+      <span class="tab-sub">replay past puzzles</span>
+    </button>
   </div>
 
   <!-- ================= STOP IT ================= -->
@@ -562,6 +641,10 @@
       <div class="round-dot" data-round="3">3</div>
     </div>
     <div class="round-label" id="s_roundLabel">Round 1 of 3</div>
+    <div class="archive-banner" id="s_archiveBanner">
+      <span class="archive-banner-text">Playing archived puzzle</span>
+      <button id="s_backToToday">Back to Today</button>
+    </div>
 
     <div class="target-block">
       <div class="target-label">Today's target</div>
@@ -613,6 +696,10 @@
       <div class="round-dot" data-round="3">3</div>
     </div>
     <div class="round-label" id="g_roundLabel">Round 1 of 3</div>
+    <div class="archive-banner" id="g_archiveBanner">
+      <span class="archive-banner-text">Playing archived puzzle</span>
+      <button id="g_backToToday">Back to Today</button>
+    </div>
 
     <div class="target-block">
       <div class="target-label">Today's window</div>
@@ -658,6 +745,12 @@
       <div class="next-in" id="g_nextIn"></div>
     </div>
 
+  </section>
+
+  <!-- ================= ARCHIVES ================= -->
+  <section class="panel" id="panelArchive" role="tabpanel" aria-labelledby="tabArchive" hidden>
+    <div class="archive-note">Free during beta. Archives may require an account and a one-time unlock later — today, everything here is open.</div>
+    <div class="archive-list" id="archiveList"></div>
   </section>
 
   <button class="info-toggle" id="infoToggle">How this works</button>
@@ -718,6 +811,29 @@
     try{ localStorage.setItem(STORE_PREFIX + key, JSON.stringify(val)); }catch(e){}
   }
 
+  /* ---------- shared beep ---------- */
+  let sharedAudioCtx = null;
+  function playTone(freq, duration){
+    try{
+      sharedAudioCtx = sharedAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = sharedAudioCtx.createOscillator();
+      const gain = sharedAudioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, sharedAudioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.28, sharedAudioCtx.currentTime + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, sharedAudioCtx.currentTime + duration);
+      osc.connect(gain).connect(sharedAudioCtx.destination);
+      osc.start();
+      osc.stop(sharedAudioCtx.currentTime + duration + 0.02);
+    }catch(e){ /* audio unsupported — game still works silently */ }
+  }
+
+  // Placeholder for future account/payment gating. Always true for now —
+  // archives are free during beta. Swap this out once accounts + paid
+  // archive access exist, without touching any of the calling code.
+  function userHasArchiveAccess(){ return true; }
+
   const TIERS = [
     { key: "frozen", label: "Frozen",  max: 15  },
     { key: "sharp",  label: "Sharp",   max: 60  },
@@ -729,12 +845,23 @@
     for (const t of TIERS){ if (diffMs <= t.max) return t; }
     return TIERS[TIERS.length - 1];
   }
+  // True win condition: your time rounds to the exact same hundredth as
+  // the actual/target value. Distinct from — and better than — "Frozen."
+  function isExactWin(yourVal, targetVal){
+    return Math.round(yourVal * 100) === Math.round(targetVal * 100);
+  }
+  function tierForResult(diffMs, exact){
+    if (exact) return { key: "perfect", label: "Perfect!", max: 0 };
+    return tierFor(diffMs);
+  }
   function tierRank(key){
+    if (key === "perfect") return 5;
     const idx = TIERS.findIndex(t => t.key === key);
     return TIERS.length - idx;
   }
   function tierEmoji(key){
     switch(key){
+      case "perfect": return "⭐";
       case "frozen": return "🥶";
       case "sharp":  return "🎯";
       case "close":  return "🟠";
@@ -749,7 +876,7 @@
       const seg = document.createElement("i");
       if (i <= rank){
         seg.classList.add("fill");
-        if (tierKey === "frozen" || tierKey === "sharp") seg.classList.add("mint");
+        if (tierKey === "frozen" || tierKey === "sharp" || tierKey === "perfect") seg.classList.add("mint");
       }
       el.appendChild(seg);
     }
@@ -771,7 +898,7 @@
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eGx0emZ1a3R3aGVhZmZ4a2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzOTQxNzUsImV4cCI6MjEwMzk3MDE3NX0.ColDvF5XGbysNGsyOn7AVUi0mGggjj9J5F85BD3gaQo";
   const BACKEND_ENABLED = SUPABASE_URL.indexOf("YOUR-PROJECT-REF") === -1;
 
-  async function submitResult(game, round, diffMs){
+  async function submitResult(game, round, diffMs, dk){
     if (!BACKEND_ENABLED) return;
     try{
       await fetch(SUPABASE_URL + "/rest/v1/results", {
@@ -782,15 +909,15 @@
           "Content-Type": "application/json",
           "Prefer": "return=minimal"
         },
-        body: JSON.stringify({ puzzle_date: dateKey, game: game, round: round, diff_ms: Math.round(diffMs) })
+        body: JSON.stringify({ puzzle_date: dk || dateKey, game: game, round: round, diff_ms: Math.round(diffMs) })
       });
     }catch(e){ /* offline or backend unreachable — local result still stands */ }
   }
 
-  async function fetchTodayDiffs(game, round){
+  async function fetchTodayDiffs(game, round, dk){
     if (!BACKEND_ENABLED) return null;
     try{
-      const url = SUPABASE_URL + "/rest/v1/results?puzzle_date=eq." + dateKey + "&game=eq." + game + "&round=eq." + round + "&select=diff_ms";
+      const url = SUPABASE_URL + "/rest/v1/results?puzzle_date=eq." + (dk || dateKey) + "&game=eq." + game + "&round=eq." + round + "&select=diff_ms";
       const res = await fetch(url, {
         headers: {
           "apikey": SUPABASE_ANON_KEY,
@@ -811,8 +938,8 @@
 
   // Kicks off in the background after a result renders. Upgrades the
   // estimated percentile to a real one once server data comes back.
-  async function upgradePercentile(game, round, diffMs, pctNumEl, noteEl){
-    const diffs = await fetchTodayDiffs(game, round);
+  async function upgradePercentile(game, round, diffMs, pctNumEl, noteEl, dk){
+    const diffs = await fetchTodayDiffs(game, round, dk);
     const real = realPercentile(diffMs, diffs);
     if (real !== null){
       pctNumEl.textContent = real;
@@ -820,7 +947,7 @@
     }
   }
 
-  /* ---------- three-round difficulty ladder ---------- */
+  /* ---------- three-round difficulty ladder (Stop It only) ---------- */
   const ROUND_COUNT = 3;
   // Round 1: whole seconds (e.g. 4). Round 2: half-seconds (e.g. 6.5).
   // Round 3: hundredths (e.g. 7.76) — same spirit as the original single
@@ -838,13 +965,23 @@
     if (round === 2) return value.toFixed(1);
     return value.toFixed(2);
   }
+  // Guess It: same difficulty every round — a plain random hundredths
+  // value each time, never a progressive ladder like Stop It.
+  function guessRoundDelay(round, dk){
+    const seed = "timle-guessflat-r" + round + "-" + dk;
+    const rand = mulberry32(seedFromString(seed));
+    const MIN = 3.00, MAX = 14.99;
+    return Math.round((MIN + rand() * (MAX - MIN)) * 100) / 100;
+  }
   function tierDotClass(tierKey){
+    if (tierKey === "perfect") return "done-perfect";
     if (tierKey === "frozen" || tierKey === "sharp") return "done-frozen";
     if (tierKey === "close" || tierKey === "off") return "done-off";
     return "done-missed";
   }
-  function roundResultKey(game, round){ return game + "_result_r" + round + "_" + dateKey; }
+  function roundResultKey(game, round, dk){ return game + "_result_r" + round + "_" + (dk || dateKey); }
   function roundBestKey(game, round){ return game + "_best_r" + round; }
+  function puzzleNumberFor(dk){ return Math.max(1, daysBetween(LAUNCH_DATE, dk) + 1); }
 
   function startCountdown(el){
     function tick(){
@@ -866,21 +1003,26 @@
   /* ---------- tabs ---------- */
   const tabStop = document.getElementById("tabStop");
   const tabGuess = document.getElementById("tabGuess");
+  const tabArchive = document.getElementById("tabArchive");
   const panelStop = document.getElementById("panelStop");
   const panelGuess = document.getElementById("panelGuess");
+  const panelArchive = document.getElementById("panelArchive");
 
   function selectTab(which){
-    const stopActive = which === "stop";
-    tabStop.setAttribute("aria-selected", stopActive ? "true" : "false");
-    tabGuess.setAttribute("aria-selected", stopActive ? "false" : "true");
-    panelStop.classList.toggle("active", stopActive);
-    panelGuess.classList.toggle("active", !stopActive);
-    panelStop.hidden = !stopActive;
-    panelGuess.hidden = stopActive;
-    refreshStreakDisplay(stopActive ? "stop" : "guess");
+    tabStop.setAttribute("aria-selected", which === "stop" ? "true" : "false");
+    tabGuess.setAttribute("aria-selected", which === "guess" ? "true" : "false");
+    tabArchive.setAttribute("aria-selected", which === "archive" ? "true" : "false");
+    panelStop.classList.toggle("active", which === "stop");
+    panelGuess.classList.toggle("active", which === "guess");
+    panelArchive.classList.toggle("active", which === "archive");
+    panelStop.hidden = which !== "stop";
+    panelGuess.hidden = which !== "guess";
+    panelArchive.hidden = which !== "archive";
+    if (which === "stop" || which === "guess") refreshStreakDisplay(which);
   }
   tabStop.addEventListener("click", () => selectTab("stop"));
   tabGuess.addEventListener("click", () => selectTab("guess"));
+  tabArchive.addEventListener("click", () => selectTab("archive"));
 
   const streakCountEl = document.getElementById("streakCount");
   const streakPillEl = document.getElementById("streakPill");
@@ -889,6 +1031,48 @@
     streakCountEl.textContent = data.count;
     streakPillEl.classList.toggle("active", data.count > 0);
   }
+
+  /* ---------- archives ---------- */
+  function buildArchiveList(){
+    const listEl = document.getElementById("archiveList");
+    const dates = [];
+    let d = new Date(dateKey + "T00:00:00");
+    d.setDate(d.getDate() - 1); // yesterday backward — today isn't an "archive"
+    const launch = new Date(LAUNCH_DATE + "T00:00:00");
+    while (d >= launch){
+      dates.push(todayKey(d));
+      d.setDate(d.getDate() - 1);
+    }
+    if (dates.length === 0){
+      listEl.innerHTML = '<div class="archive-empty">No past puzzles yet — check back after today\'s is done.</div>';
+      return;
+    }
+    listEl.innerHTML = "";
+    dates.forEach(dk => {
+      const done = [1,2,3].every(r => loadJSON(roundResultKey("stop", r, dk), null)) &&
+                   [1,2,3].every(r => loadJSON(roundResultKey("guess", r, dk), null));
+      const row = document.createElement("div");
+      row.className = "archive-row";
+      row.innerHTML =
+        '<div><div class="arch-date">' + dk + '</div><div class="arch-puzzle">Puzzle #' + puzzleNumberFor(dk) + '</div></div>' +
+        '<div class="arch-status' + (done ? ' done' : '') + '">' + (done ? "✓ Played" : "Play →") + '</div>';
+      row.addEventListener("click", function(){
+        if (!userHasArchiveAccess()) return; // stubbed for future paywall
+        window.loadStopDate(dk);
+        window.loadGuessDate(dk);
+        selectTab("stop");
+      });
+      listEl.appendChild(row);
+    });
+  }
+  buildArchiveList();
+
+  document.getElementById("s_backToToday").addEventListener("click", function(){
+    window.loadStopDate(dateKey);
+  });
+  document.getElementById("g_backToToday").addEventListener("click", function(){
+    window.loadGuessDate(dateKey);
+  });
 
   function registerStreak(storeKey, streakObj){
     const y = new Date();
@@ -908,9 +1092,9 @@
 
   /* ================= STOP IT ================= */
   (function(){
-    let results = [1,2,3].map(r => loadJSON(roundResultKey("stop", r), null));
-    let currentRound = results.findIndex(r => r === null) + 1;
-    if (currentRound === 0) currentRound = ROUND_COUNT + 1; // sentinel: day complete
+    let activeDate = dateKey;
+    let results = [];
+    let currentRound = 1;
 
     window.stopStreak = loadJSON("stop_streak", { count: 0, lastDate: null });
 
@@ -934,6 +1118,7 @@
     const nextRoundBtn = document.getElementById("s_nextRoundBtn");
     const shareBtn = document.getElementById("s_shareBtn");
     const nextInEl = document.getElementById("s_nextIn");
+    const archiveBanner = document.getElementById("s_archiveBanner");
 
     let target = null;
     let state = "idle";
@@ -945,7 +1130,7 @@
         dot.className = "round-dot";
         const res = results[r - 1];
         if (res){
-          dot.classList.add(tierDotClass(tierFor(res.diffMs).key));
+          dot.classList.add(tierDotClass(res.tierKey));
           dot.textContent = "✓";
         } else if (r === currentRound){
           dot.classList.add("current");
@@ -956,9 +1141,19 @@
       }
     }
 
+    function renderArchiveBanner(){
+      if (activeDate === dateKey){
+        archiveBanner.style.display = "none";
+      } else {
+        archiveBanner.style.display = "flex";
+        archiveBanner.querySelector(".archive-banner-text").textContent =
+          "Playing archived Puzzle #" + puzzleNumberFor(activeDate) + " (" + activeDate + ")";
+      }
+    }
+
     function setupRound(r){
       currentRound = r;
-      target = roundTarget("stop", r, dateKey);
+      target = roundTarget("stop", r, activeDate);
       targetValueEl.textContent = formatTargetValue(r, target);
       roundLabelEl.textContent = "Round " + r + " of " + ROUND_COUNT;
       state = "idle";
@@ -972,15 +1167,16 @@
       nextRoundBtn.style.display = "";
       shareBtn.style.display = "none";
       renderRoundTracker();
+      renderArchiveBanner();
     }
 
     function renderDaySummary(){
       let html = "";
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        const tier = tierFor(res.diffMs);
-        const t = roundTarget("stop", r, dateKey);
-        html += '<div class="day-summary-row"><span>Round ' + r + ' (' + formatTargetValue(r, t) + 's)</span><b>' + tier.label + ' · ' + res.diffMs + 'ms</b></div>';
+        const label = res.tierKey === "perfect" ? "Perfect!" : tierFor(res.diffMs).label;
+        const t = roundTarget("stop", r, activeDate);
+        html += '<div class="day-summary-row"><span>Round ' + r + ' (' + formatTargetValue(r, t) + 's)</span><b>' + label + ' · ' + res.diffMs + 'ms</b></div>';
       }
       daySummaryEl.innerHTML = html;
       daySummaryEl.classList.add("show");
@@ -989,16 +1185,17 @@
     }
 
     function renderResult(res, r){
-      const tier = tierFor(res.diffMs);
-      tierNameEl.textContent = tier.label;
-      tierNameEl.className = "result-tier-name " + tier.key;
+      const exact = res.tierKey === "perfect";
+      const tierObj = exact ? { key: "perfect", label: "Perfect!" } : tierFor(res.diffMs);
+      tierNameEl.textContent = tierObj.label;
+      tierNameEl.className = "result-tier-name " + tierObj.key;
       diffMsEl.textContent = res.diffMs;
-      rowTarget.textContent = formatTargetValue(r, roundTarget("stop", r, dateKey)) + "s";
-      rowYours.textContent = res.yourTime.toFixed(3) + "s";
+      rowTarget.textContent = formatTargetValue(r, roundTarget("stop", r, activeDate)) + "s";
+      rowYours.textContent = res.yourTime.toFixed(2) + "s";
       const bestKey = roundBestKey("stop", r);
       const best = loadJSON(bestKey, { diffMs: null });
       rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
-      renderGauge(gaugeEl, tier.key);
+      renderGauge(gaugeEl, tierObj.key);
       pctNumEl.textContent = estimatedPercentile(res.diffMs);
       percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
@@ -1006,11 +1203,11 @@
 
       dial.classList.remove("running");
       dial.classList.add("done");
-      dialReadout.textContent = res.yourTime.toFixed(3);
+      dialReadout.textContent = res.yourTime.toFixed(2);
       dialHint.textContent = "round complete";
 
       if (r < ROUND_COUNT){
-        tapInstruction.textContent = "Nice. Next round is harder.";
+        tapInstruction.textContent = exact ? "Exact match! Next round is up." : "Nice. Next round is up.";
         renderRoundTracker();
       } else {
         tapInstruction.textContent = "All 3 rounds done — come back tomorrow.";
@@ -1020,9 +1217,10 @@
     }
 
     function beginRun(){
-      if (state !== "idle" || currentRound > ROUND_COUNT) return;
+      if (state !== "idle" || currentRound > ROUND_COUNT || activeDate !== dateKey) return;
       state = "running";
       startTime = performance.now();
+      playTone(660, 0.15);
       dial.classList.add("running");
       dialReadout.innerHTML = '<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>';
       dialHint.textContent = "tap to stop";
@@ -1034,7 +1232,9 @@
       const elapsedMs = performance.now() - startTime;
       const yourTime = elapsedMs / 1000;
       const diffMs = Math.round(Math.abs(elapsedMs - target * 1000));
+      const exact = isExactWin(yourTime, target);
       state = "done";
+      playTone(880, 0.15);
 
       const bestKey = roundBestKey("stop", currentRound);
       const best = loadJSON(bestKey, { diffMs: null });
@@ -1042,16 +1242,16 @@
         saveJSON(bestKey, { diffMs: diffMs });
       }
 
-      const res = { yourTime, diffMs, playedAt: Date.now() };
+      const res = { yourTime, diffMs, tierKey: exact ? "perfect" : tierFor(diffMs).key, playedAt: Date.now() };
       const r = currentRound;
       results[r - 1] = res;
-      saveJSON(roundResultKey("stop", r), res);
+      saveJSON(roundResultKey("stop", r, activeDate), res);
       renderResult(res, r);
-      liveRegion.textContent = "Stopped. You were " + diffMs + " milliseconds off.";
-      submitResult("stop", r, diffMs);
-      upgradePercentile("stop", r, diffMs, pctNumEl, percentileNoteEl);
+      liveRegion.textContent = exact ? "Exact match!" : ("Stopped. You were " + diffMs + " milliseconds off.");
+      submitResult("stop", r, diffMs, activeDate);
+      upgradePercentile("stop", r, diffMs, pctNumEl, percentileNoteEl, activeDate);
 
-      if (r === ROUND_COUNT){
+      if (r === ROUND_COUNT && activeDate === dateKey){
         registerStreak("stop_streak", window.stopStreak);
         refreshStreakDisplay("stop");
       }
@@ -1069,11 +1269,10 @@
     });
 
     function buildShareText(){
-      const lines = ["Timle #" + puzzleNumber + " Stop It"];
+      const lines = ["Timle #" + puzzleNumberFor(activeDate) + " Stop It"];
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        const tier = tierFor(res.diffMs);
-        lines.push("R" + r + " " + tierEmoji(tier.key) + " Δ" + res.diffMs + "ms");
+        lines.push("R" + r + " " + tierEmoji(res.tierKey) + " Δ" + res.diffMs + "ms");
       }
       lines.push("Streak: " + window.stopStreak.count);
       return lines.join("\n");
@@ -1103,39 +1302,51 @@
       }
     });
 
-    if (currentRound > ROUND_COUNT){
-      roundLabelEl.textContent = "All rounds complete";
-      renderRoundTracker();
-      dial.classList.add("done");
-      dialReadout.textContent = "✓";
-      dialHint.textContent = "today's rounds";
-      tapInstruction.textContent = "Come back tomorrow for new rounds.";
-      const res3 = results[2];
-      const tier = tierFor(res3.diffMs);
-      tierNameEl.textContent = tier.label;
-      tierNameEl.className = "result-tier-name " + tier.key;
-      diffMsEl.textContent = res3.diffMs;
-      rowTarget.textContent = formatTargetValue(3, roundTarget("stop", 3, dateKey)) + "s";
-      rowYours.textContent = res3.yourTime.toFixed(3) + "s";
-      const best3 = loadJSON(roundBestKey("stop", 3), { diffMs: null });
-      rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
-      renderGauge(gaugeEl, tier.key);
-      pctNumEl.textContent = estimatedPercentile(res3.diffMs);
-      resultEl.classList.add("show");
-      startCountdown(nextInEl);
-      renderDaySummary();
-    } else {
-      setupRound(currentRound);
+    function loadDate(dk){
+      activeDate = dk;
+      results = [1, 2, 3].map(r => loadJSON(roundResultKey("stop", r, dk), null));
+      let firstOpen = results.findIndex(r => r === null) + 1;
+      if (firstOpen === 0) firstOpen = ROUND_COUNT + 1;
+
+      if (firstOpen > ROUND_COUNT){
+        currentRound = ROUND_COUNT + 1;
+        roundLabelEl.textContent = "All rounds complete";
+        renderRoundTracker();
+        renderArchiveBanner();
+        dial.className = "dial done";
+        dialReadout.textContent = "✓";
+        dialHint.textContent = "today's rounds";
+        tapInstruction.textContent = activeDate === dateKey ? "Come back tomorrow for new rounds." : "You've completed this archived puzzle.";
+        const res3 = results[2];
+        const tierObj = res3.tierKey === "perfect" ? { key: "perfect", label: "Perfect!" } : tierFor(res3.diffMs);
+        tierNameEl.textContent = tierObj.label;
+        tierNameEl.className = "result-tier-name " + tierObj.key;
+        diffMsEl.textContent = res3.diffMs;
+        rowTarget.textContent = formatTargetValue(3, roundTarget("stop", 3, activeDate)) + "s";
+        rowYours.textContent = res3.yourTime.toFixed(2) + "s";
+        const best3 = loadJSON(roundBestKey("stop", 3), { diffMs: null });
+        rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
+        renderGauge(gaugeEl, tierObj.key);
+        pctNumEl.textContent = estimatedPercentile(res3.diffMs);
+        resultEl.classList.add("show");
+        startCountdown(nextInEl);
+        renderDaySummary();
+      } else {
+        setupRound(firstOpen);
+      }
     }
+    window.loadStopDate = loadDate;
+
+    loadDate(dateKey);
   })();
 
   /* ================= GUESS IT ================= */
   (function(){
-    const RANGE_LABEL = { 1: "2s – 9s", 2: "2.5s – 11.5s", 3: "3.00s – 14.99s" };
+    const RANGE_LABEL = "3.00s – 14.99s";
 
-    let results = [1,2,3].map(r => loadJSON(roundResultKey("guess", r), null));
-    let currentRound = results.findIndex(r => r === null) + 1;
-    if (currentRound === 0) currentRound = ROUND_COUNT + 1;
+    let activeDate = dateKey;
+    let results = [];
+    let currentRound = 1;
 
     window.guessStreak = loadJSON("guess_streak", { count: 0, lastDate: null });
 
@@ -1162,28 +1373,12 @@
     const nextRoundBtn = document.getElementById("g_nextRoundBtn");
     const shareBtn = document.getElementById("g_shareBtn");
     const nextInEl = document.getElementById("g_nextIn");
+    const archiveBanner = document.getElementById("g_archiveBanner");
 
     let state = "idle"; // idle | listening | awaitingGuess | done
     let startTime = null;
     let actualElapsedMs = null;
     let delaySeconds = null;
-    let audioCtx = null;
-
-    function playBeep(){
-      try{
-        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = 880;
-        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.32);
-      }catch(e){ /* audio unsupported — visual cue still fires */ }
-    }
 
     function renderRoundTracker(){
       for (let r = 1; r <= ROUND_COUNT; r++){
@@ -1191,7 +1386,7 @@
         dot.className = "round-dot";
         const res = results[r - 1];
         if (res){
-          dot.classList.add(tierDotClass(tierFor(res.diffMs).key));
+          dot.classList.add(tierDotClass(res.tierKey));
           dot.textContent = "✓";
         } else if (r === currentRound){
           dot.classList.add("current");
@@ -1202,10 +1397,20 @@
       }
     }
 
+    function renderArchiveBanner(){
+      if (activeDate === dateKey){
+        archiveBanner.style.display = "none";
+      } else {
+        archiveBanner.style.display = "flex";
+        archiveBanner.querySelector(".archive-banner-text").textContent =
+          "Playing archived Puzzle #" + puzzleNumberFor(activeDate) + " (" + activeDate + ")";
+      }
+    }
+
     function setupRound(r){
       currentRound = r;
-      delaySeconds = roundTarget("guess", r, dateKey);
-      targetValueEl.textContent = RANGE_LABEL[r];
+      delaySeconds = guessRoundDelay(r, activeDate);
+      targetValueEl.textContent = RANGE_LABEL;
       roundLabelEl.textContent = "Round " + r + " of " + ROUND_COUNT;
       state = "idle";
       dial.className = "dial";
@@ -1219,14 +1424,15 @@
       nextRoundBtn.style.display = "";
       shareBtn.style.display = "none";
       renderRoundTracker();
+      renderArchiveBanner();
     }
 
     function renderDaySummary(){
       let html = "";
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        const tier = tierFor(res.diffMs);
-        html += '<div class="day-summary-row"><span>Round ' + r + '</span><b>' + tier.label + ' · ' + res.diffMs + 'ms</b></div>';
+        const label = res.tierKey === "perfect" ? "Perfect!" : tierFor(res.diffMs).label;
+        html += '<div class="day-summary-row"><span>Round ' + r + '</span><b>' + label + ' · ' + res.diffMs + 'ms</b></div>';
       }
       daySummaryEl.innerHTML = html;
       daySummaryEl.classList.add("show");
@@ -1235,16 +1441,17 @@
     }
 
     function renderResult(res, r){
-      const tier = tierFor(res.diffMs);
-      tierNameEl.textContent = tier.label;
-      tierNameEl.className = "result-tier-name " + tier.key;
+      const exact = res.tierKey === "perfect";
+      const tierObj = exact ? { key: "perfect", label: "Perfect!" } : tierFor(res.diffMs);
+      tierNameEl.textContent = tierObj.label;
+      tierNameEl.className = "result-tier-name " + tierObj.key;
       diffMsEl.textContent = res.diffMs;
-      rowActual.textContent = (res.actualMs / 1000).toFixed(3) + "s";
+      rowActual.textContent = (res.actualMs / 1000).toFixed(2) + "s";
       rowYours.textContent = res.guessSeconds.toFixed(2) + "s";
       const bestKey = roundBestKey("guess", r);
       const best = loadJSON(bestKey, { diffMs: null });
       rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
-      renderGauge(gaugeEl, tier.key);
+      renderGauge(gaugeEl, tierObj.key);
       pctNumEl.textContent = estimatedPercentile(res.diffMs);
       percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
@@ -1257,7 +1464,7 @@
       guessForm.classList.remove("show");
 
       if (r < ROUND_COUNT){
-        tapInstruction.textContent = "Nice. Next round is harder.";
+        tapInstruction.textContent = exact ? "Exact match! Next round is up." : "Nice. Next round is up.";
         renderRoundTracker();
       } else {
         tapInstruction.textContent = "All 3 rounds done — come back tomorrow.";
@@ -1267,9 +1474,10 @@
     }
 
     function beginRun(){
-      if (state !== "idle" || currentRound > ROUND_COUNT) return;
+      if (state !== "idle" || currentRound > ROUND_COUNT || activeDate !== dateKey) return;
       state = "listening";
       startTime = performance.now();
+      playTone(660, 0.15);
       dial.classList.add("running");
       dialReadout.innerHTML = '<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>';
       dialHint.textContent = "listening…";
@@ -1278,7 +1486,7 @@
 
       setTimeout(function(){
         actualElapsedMs = performance.now() - startTime;
-        playBeep();
+        playTone(880, 0.3);
         state = "awaitingGuess";
         dial.classList.remove("running");
         dial.classList.add("beeped");
@@ -1298,6 +1506,7 @@
       if (isNaN(val) || val < 0) return;
       const guessMs = val * 1000;
       const diffMs = Math.round(Math.abs(guessMs - actualElapsedMs));
+      const exact = isExactWin(val, actualElapsedMs / 1000);
       state = "done";
 
       const bestKey = roundBestKey("guess", currentRound);
@@ -1306,16 +1515,16 @@
         saveJSON(bestKey, { diffMs: diffMs });
       }
 
-      const res = { guessSeconds: val, actualMs: actualElapsedMs, diffMs, playedAt: Date.now() };
+      const res = { guessSeconds: val, actualMs: actualElapsedMs, diffMs, tierKey: exact ? "perfect" : tierFor(diffMs).key, playedAt: Date.now() };
       const r = currentRound;
       results[r - 1] = res;
-      saveJSON(roundResultKey("guess", r), res);
+      saveJSON(roundResultKey("guess", r, activeDate), res);
       renderResult(res, r);
-      liveRegion.textContent = "Submitted. You were " + diffMs + " milliseconds off.";
-      submitResult("guess", r, diffMs);
-      upgradePercentile("guess", r, diffMs, pctNumEl, percentileNoteEl);
+      liveRegion.textContent = exact ? "Exact match!" : ("Submitted. You were " + diffMs + " milliseconds off.");
+      submitResult("guess", r, diffMs, activeDate);
+      upgradePercentile("guess", r, diffMs, pctNumEl, percentileNoteEl, activeDate);
 
-      if (r === ROUND_COUNT){
+      if (r === ROUND_COUNT && activeDate === dateKey){
         registerStreak("guess_streak", window.guessStreak);
         refreshStreakDisplay("guess");
       }
@@ -1337,11 +1546,10 @@
     });
 
     function buildShareText(){
-      const lines = ["Timle #" + puzzleNumber + " Guess It"];
+      const lines = ["Timle #" + puzzleNumberFor(activeDate) + " Guess It"];
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        const tier = tierFor(res.diffMs);
-        lines.push("R" + r + " " + tierEmoji(tier.key) + " Δ" + res.diffMs + "ms");
+        lines.push("R" + r + " " + tierEmoji(res.tierKey) + " Δ" + res.diffMs + "ms");
       }
       lines.push("Streak: " + window.guessStreak.count);
       return lines.join("\n");
@@ -1362,30 +1570,42 @@
       }
     });
 
-    if (currentRound > ROUND_COUNT){
-      roundLabelEl.textContent = "All rounds complete";
-      renderRoundTracker();
-      dial.classList.add("done");
-      dialReadout.textContent = "✓";
-      dialHint.textContent = "today's rounds";
-      tapInstruction.textContent = "Come back tomorrow for new rounds.";
-      const res3 = results[2];
-      const tier = tierFor(res3.diffMs);
-      tierNameEl.textContent = tier.label;
-      tierNameEl.className = "result-tier-name " + tier.key;
-      diffMsEl.textContent = res3.diffMs;
-      rowActual.textContent = (res3.actualMs / 1000).toFixed(3) + "s";
-      rowYours.textContent = res3.guessSeconds.toFixed(2) + "s";
-      const best3 = loadJSON(roundBestKey("guess", 3), { diffMs: null });
-      rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
-      renderGauge(gaugeEl, tier.key);
-      pctNumEl.textContent = estimatedPercentile(res3.diffMs);
-      resultEl.classList.add("show");
-      startCountdown(nextInEl);
-      renderDaySummary();
-    } else {
-      setupRound(currentRound);
+    function loadDate(dk){
+      activeDate = dk;
+      results = [1, 2, 3].map(r => loadJSON(roundResultKey("guess", r, dk), null));
+      let firstOpen = results.findIndex(r => r === null) + 1;
+      if (firstOpen === 0) firstOpen = ROUND_COUNT + 1;
+
+      if (firstOpen > ROUND_COUNT){
+        currentRound = ROUND_COUNT + 1;
+        roundLabelEl.textContent = "All rounds complete";
+        renderRoundTracker();
+        renderArchiveBanner();
+        dial.className = "dial done";
+        dialReadout.textContent = "✓";
+        dialHint.textContent = "today's rounds";
+        tapInstruction.textContent = activeDate === dateKey ? "Come back tomorrow for new rounds." : "You've completed this archived puzzle.";
+        const res3 = results[2];
+        const tierObj = res3.tierKey === "perfect" ? { key: "perfect", label: "Perfect!" } : tierFor(res3.diffMs);
+        tierNameEl.textContent = tierObj.label;
+        tierNameEl.className = "result-tier-name " + tierObj.key;
+        diffMsEl.textContent = res3.diffMs;
+        rowActual.textContent = (res3.actualMs / 1000).toFixed(2) + "s";
+        rowYours.textContent = res3.guessSeconds.toFixed(2) + "s";
+        const best3 = loadJSON(roundBestKey("guess", 3), { diffMs: null });
+        rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
+        renderGauge(gaugeEl, tierObj.key);
+        pctNumEl.textContent = estimatedPercentile(res3.diffMs);
+        resultEl.classList.add("show");
+        startCountdown(nextInEl);
+        renderDaySummary();
+      } else {
+        setupRound(firstOpen);
+      }
     }
+    window.loadGuessDate = loadDate;
+
+    loadDate(dateKey);
   })();
 
 
