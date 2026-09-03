@@ -948,7 +948,7 @@
     const db = new Date(b + "T00:00:00");
     return Math.round((db - da) / 86400000);
   }
-  const LAUNCH_DATE = "2026-09-03";
+  const LAUNCH_DATE = "2026-09-02";
   const dateKey = todayKey();
   const puzzleNumber = Math.max(1, daysBetween(LAUNCH_DATE, dateKey) + 1);
   document.getElementById("puzzleNo").textContent = "Puzzle #" + puzzleNumber;
@@ -1431,7 +1431,7 @@
     }
 
     function beginRun(){
-      if (state !== "idle" || currentRound > ROUND_COUNT || activeDate !== dateKey) return;
+      if (state !== "idle" || currentRound > ROUND_COUNT) return;
       state = "running";
       startTime = performance.now();
       playTone(660, 0.15);
@@ -1696,7 +1696,7 @@
     }
 
     function beginRun(){
-      if (state !== "idle" || currentRound > ROUND_COUNT || activeDate !== dateKey) return;
+      if (state !== "idle" || currentRound > ROUND_COUNT) return;
       state = "listening";
       startTime = performance.now();
       playTone(660, 0.15);
