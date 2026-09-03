@@ -512,6 +512,98 @@
     margin-top:24px;
   }
 
+  /* help button + modal */
+  .header-right{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .help-btn{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--paper-dim);
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .help-btn:hover{ border-color:var(--paper-faint); color:var(--paper); }
+
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(6,7,9,0.72);
+    backdrop-filter:blur(2px);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:1000;
+    padding:20px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    max-width:440px;
+    width:100%;
+    max-height:85vh;
+    overflow-y:auto;
+    padding:26px;
+    position:relative;
+  }
+  .modal-close{
+    position:absolute;
+    top:14px;
+    right:14px;
+    background:none;
+    border:none;
+    color:var(--paper-dim);
+    font-size:22px;
+    line-height:1;
+    cursor:pointer;
+    padding:4px;
+  }
+  .modal-close:hover{ color:var(--paper); }
+  .modal-title{
+    font-size:20px;
+    font-weight:700;
+    margin:0 0 4px;
+    padding-right:24px;
+  }
+  .modal-sub{
+    font-size:13px;
+    color:var(--paper-dim);
+    margin:0 0 20px;
+  }
+  .modal-section{ margin-bottom:18px; }
+  .modal-section:last-of-type{ margin-bottom:0; }
+  .modal-section h3{
+    font-size:14px;
+    margin:0 0 6px;
+    color:var(--paper);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .modal-section p{
+    font-size:13px;
+    color:var(--paper-dim);
+    line-height:1.6;
+    margin:0 0 6px;
+  }
+  .modal-section p:last-child{ margin-bottom:0; }
+  .modal-cta{
+    width:100%;
+    margin-top:20px;
+  }
+
   .actions{
     display:flex;
     gap:10px;
@@ -610,9 +702,12 @@
 
   <header>
     <div class="wordmark">Ti<span>ml</span>e</div>
-    <div class="streak-pill" id="streakPill">
-      <span class="streak-flame" id="streakFlame">●</span>
-      <b id="streakCount">0</b>&nbsp;streak
+    <div class="header-right">
+      <button class="help-btn" id="helpBtn" aria-label="How to play">?</button>
+      <div class="streak-pill" id="streakPill">
+        <span class="streak-flame" id="streakFlame">●</span>
+        <b id="streakCount">0</b>&nbsp;streak
+      </div>
     </div>
   </header>
   <div class="puzzle-no" id="puzzleNo">Puzzle #—</div>
@@ -753,14 +848,44 @@
     <div class="archive-list" id="archiveList"></div>
   </section>
 
-  <button class="info-toggle" id="infoToggle">How this works</button>
-  <div class="info-panel" id="infoPanel">
-    <p><b style="color:var(--paper)">Stop It</b> — everyone gets the same hidden target time each day. You see the number, then it disappears the moment you start the clock. Tap again the instant you think you've hit it.</p>
-    <p><b style="color:var(--paper)">Guess It</b> — tap to start, and a beep fires at a random point within the day's window. You don't know when. The moment it beeps, type your best estimate of how many seconds had passed.</p>
-    <p>Both games: one attempt per day, per game. Your error in milliseconds is your score. New challenges unlock at midnight, your time.</p>
-  </div>
-
   <div aria-live="polite" class="sr-only" id="liveRegion"></div>
+</div>
+
+<div class="modal-overlay" id="helpModal">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <button class="modal-close" id="helpClose" aria-label="Close">×</button>
+    <div class="modal-title" id="helpTitle">How to play Timle</div>
+    <div class="modal-sub">Two daily games. Three rounds each. Trust your internal clock.</div>
+
+    <div class="modal-section">
+      <h3>⏱️ Stop It</h3>
+      <p>You're shown a target time. Tap once to start a hidden clock — no numbers, no progress bar — then tap again the instant you think you've hit it.</p>
+      <p>Each round gets harder: Round 1 is a whole number (like 4), Round 2 is a half-second (like 6.5), Round 3 is full precision (like 7.76).</p>
+    </div>
+
+    <div class="modal-section">
+      <h3>🔔 Guess It</h3>
+      <p>Tap to start listening. A beep fires at a random moment somewhere in the round's window — then type how many seconds you think passed.</p>
+      <p>All three rounds are the same difficulty here — no ladder, just three fresh random moments.</p>
+    </div>
+
+    <div class="modal-section">
+      <h3>⭐ Perfect</h3>
+      <p>If your time rounds to the exact same hundredth as the target, that's a Perfect — the best possible result, shown in gold.</p>
+    </div>
+
+    <div class="modal-section">
+      <h3>🔥 Streaks & rounds</h3>
+      <p>Each game gives you one attempt per round, per day. Finish all 3 rounds in a game to keep that day's streak alive — miss a day and it resets.</p>
+    </div>
+
+    <div class="modal-section">
+      <h3>🗂️ Archives</h3>
+      <p>Missed a day? The Archives tab lets you replay any past puzzle — free for now, during beta.</p>
+    </div>
+
+    <button class="btn primary modal-cta" id="helpGotIt">Got it</button>
+  </div>
 </div>
 
 <script>
@@ -1609,13 +1734,33 @@
   })();
 
 
-  /* ---------- info panel ---------- */
-  const infoToggle = document.getElementById("infoToggle");
-  const infoPanel = document.getElementById("infoPanel");
-  infoToggle.addEventListener("click", function(){
-    const showing = infoPanel.classList.toggle("show");
-    infoToggle.textContent = showing ? "Hide details" : "How this works";
+  /* ---------- help modal ---------- */
+  const helpBtn = document.getElementById("helpBtn");
+  const helpModal = document.getElementById("helpModal");
+  const helpClose = document.getElementById("helpClose");
+  const helpGotIt = document.getElementById("helpGotIt");
+
+  function openHelp(){
+    helpModal.classList.add("show");
+  }
+  function closeHelp(){
+    helpModal.classList.remove("show");
+    saveJSON("seen_instructions", true);
+  }
+  helpBtn.addEventListener("click", openHelp);
+  helpClose.addEventListener("click", closeHelp);
+  helpGotIt.addEventListener("click", closeHelp);
+  helpModal.addEventListener("click", function(e){
+    if (e.target === helpModal) closeHelp();
   });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && helpModal.classList.contains("show")) closeHelp();
+  });
+
+  // Auto-show once, on a player's very first visit.
+  if (!loadJSON("seen_instructions", false)){
+    openHelp();
+  }
 
   /* initial streak display for default tab */
   refreshStreakDisplay("stop");
