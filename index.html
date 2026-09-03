@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -378,6 +379,64 @@
     text-align:center;
   }
 
+  /* round progress */
+  .round-tracker{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    margin-top:22px;
+  }
+  .round-dot{
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:var(--panel);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    font-weight:600;
+    color:var(--paper-faint);
+    transition: all 0.2s ease;
+  }
+  .round-dot.current{
+    border-color:var(--green);
+    color:var(--paper);
+    box-shadow:0 0 0 4px var(--green-soft);
+  }
+  .round-dot.done-frozen, .round-dot.done-sharp{
+    background:var(--mint); border-color:var(--mint); color:#04241A;
+  }
+  .round-dot.done-close, .round-dot.done-off{
+    background:var(--amber); border-color:var(--amber); color:#1A1104;
+  }
+  .round-dot.done-missed{
+    background:var(--red); border-color:var(--red); color:#2A0704;
+  }
+  .round-label{
+    text-align:center;
+    font-size:12px;
+    color:var(--paper-faint);
+    margin-top:8px;
+  }
+
+  .day-summary{
+    display:none;
+    margin-top:16px;
+    padding-top:14px;
+    border-top:1px solid var(--line);
+  }
+  .day-summary.show{ display:block; }
+  .day-summary-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:13px;
+    padding:6px 0;
+    color:var(--paper-dim);
+  }
+  .day-summary-row b{ color:var(--paper); font-weight:600; }
+
   .actions{
     display:flex;
     gap:10px;
@@ -497,6 +556,13 @@
   <!-- ================= STOP IT ================= -->
   <section class="panel active" id="panelStop" role="tabpanel" aria-labelledby="tabStop">
 
+    <div class="round-tracker" id="s_roundTracker">
+      <div class="round-dot" data-round="1">1</div>
+      <div class="round-dot" data-round="2">2</div>
+      <div class="round-dot" data-round="3">3</div>
+    </div>
+    <div class="round-label" id="s_roundLabel">Round 1 of 3</div>
+
     <div class="target-block">
       <div class="target-label">Today's target</div>
       <div class="target-value"><span id="s_targetValue">—</span><span class="unit">sec</span></div>
@@ -528,8 +594,10 @@
         <div class="result-row"><span class="k">You</span><span class="v num" id="s_rowYours">—</span></div>
         <div class="result-row"><span class="k">Personal best</span><span class="v num" id="s_rowBest">—</span></div>
       </div>
+      <div class="day-summary" id="s_daySummary"></div>
       <div class="actions">
-        <button class="btn primary" id="s_shareBtn">Copy result</button>
+        <button class="btn primary" id="s_nextRoundBtn">Next round</button>
+        <button class="btn primary" id="s_shareBtn" style="display:none;">Copy result</button>
       </div>
       <div class="next-in" id="s_nextIn"></div>
     </div>
@@ -539,9 +607,16 @@
   <!-- ================= GUESS IT ================= -->
   <section class="panel" id="panelGuess" role="tabpanel" aria-labelledby="tabGuess" hidden>
 
+    <div class="round-tracker" id="g_roundTracker">
+      <div class="round-dot" data-round="1">1</div>
+      <div class="round-dot" data-round="2">2</div>
+      <div class="round-dot" data-round="3">3</div>
+    </div>
+    <div class="round-label" id="g_roundLabel">Round 1 of 3</div>
+
     <div class="target-block">
       <div class="target-label">Today's window</div>
-      <div class="target-value masked" id="g_targetValue">3.5s – 14.5s</div>
+      <div class="target-value masked" id="g_targetValue">2s – 9s</div>
     </div>
 
     <div class="dial-zone">
@@ -575,8 +650,10 @@
         <div class="result-row"><span class="k">Your guess</span><span class="v num" id="g_rowYours">—</span></div>
         <div class="result-row"><span class="k">Personal best</span><span class="v num" id="g_rowBest">—</span></div>
       </div>
+      <div class="day-summary" id="g_daySummary"></div>
       <div class="actions">
-        <button class="btn primary" id="g_shareBtn">Copy result</button>
+        <button class="btn primary" id="g_nextRoundBtn">Next round</button>
+        <button class="btn primary" id="g_shareBtn" style="display:none;">Copy result</button>
       </div>
       <div class="next-in" id="g_nextIn"></div>
     </div>
@@ -678,12 +755,96 @@
     }
   }
   // Estimated percentile from timing error, modeled on typical human timing
-  // accuracy (not live opponent data — no backend yet to aggregate real
-  // daily results). Smooth decay calibrated so ~15ms error ≈ 95th percentile.
+  // accuracy. Used as an immediate fallback before real data loads, and
+  // whenever there aren't enough players yet for a real percentile to mean
+  // anything.
   function estimatedPercentile(diffMs){
     const p = 100 * Math.exp(-diffMs / 300);
     return Math.round(Math.max(1, Math.min(99, p)));
   }
+
+  /* ---------- backend (Supabase) ---------- */
+  // Fill these in from your Supabase project's Settings → API page, then
+  // BACKEND_ENABLED flips true automatically. Until you do, the game runs
+  // exactly as before — local-only, estimated percentile.
+  const SUPABASE_URL = "https://otxltzfuktwheaffxkdk.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eGx0emZ1a3R3aGVhZmZ4a2RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzOTQxNzUsImV4cCI6MjEwMzk3MDE3NX0.ColDvF5XGbysNGsyOn7AVUi0mGggjj9J5F85BD3gaQo";
+  const BACKEND_ENABLED = SUPABASE_URL.indexOf("YOUR-PROJECT-REF") === -1;
+
+  async function submitResult(game, round, diffMs){
+    if (!BACKEND_ENABLED) return;
+    try{
+      await fetch(SUPABASE_URL + "/rest/v1/results", {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ puzzle_date: dateKey, game: game, round: round, diff_ms: Math.round(diffMs) })
+      });
+    }catch(e){ /* offline or backend unreachable — local result still stands */ }
+  }
+
+  async function fetchTodayDiffs(game, round){
+    if (!BACKEND_ENABLED) return null;
+    try{
+      const url = SUPABASE_URL + "/rest/v1/results?puzzle_date=eq." + dateKey + "&game=eq." + game + "&round=eq." + round + "&select=diff_ms";
+      const res = await fetch(url, {
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + SUPABASE_ANON_KEY
+        }
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      return rows.map(r => r.diff_ms);
+    }catch(e){ return null; }
+  }
+
+  function realPercentile(diffMs, allDiffs){
+    if (!allDiffs || allDiffs.length < 5) return null; // too few players to mean anything yet
+    const worseThanYou = allDiffs.filter(d => d > diffMs).length;
+    return Math.max(1, Math.min(99, Math.round((worseThanYou / allDiffs.length) * 100)));
+  }
+
+  // Kicks off in the background after a result renders. Upgrades the
+  // estimated percentile to a real one once server data comes back.
+  async function upgradePercentile(game, round, diffMs, pctNumEl, noteEl){
+    const diffs = await fetchTodayDiffs(game, round);
+    const real = realPercentile(diffMs, diffs);
+    if (real !== null){
+      pctNumEl.textContent = real;
+      noteEl.textContent = "Based on " + diffs.length + " players today.";
+    }
+  }
+
+  /* ---------- three-round difficulty ladder ---------- */
+  const ROUND_COUNT = 3;
+  // Round 1: whole seconds (e.g. 4). Round 2: half-seconds (e.g. 6.5).
+  // Round 3: hundredths (e.g. 7.76) — same spirit as the original single
+  // daily target, now reserved for the hardest round.
+  function roundTarget(game, round, dk){
+    const seed = "timle-" + game + "-r" + round + "-" + dk;
+    const rand = mulberry32(seedFromString(seed));
+    if (round === 1) return Math.floor(2 + rand() * 8);       // 2–9
+    if (round === 2) return Math.floor(2 + rand() * 10) + 0.5; // 2.5–11.5
+    const MIN = 3.00, MAX = 14.99;
+    return Math.round((MIN + rand() * (MAX - MIN)) * 100) / 100;
+  }
+  function formatTargetValue(round, value){
+    if (round === 1) return value.toFixed(0);
+    if (round === 2) return value.toFixed(1);
+    return value.toFixed(2);
+  }
+  function tierDotClass(tierKey){
+    if (tierKey === "frozen" || tierKey === "sharp") return "done-frozen";
+    if (tierKey === "close" || tierKey === "off") return "done-off";
+    return "done-missed";
+  }
+  function roundResultKey(game, round){ return game + "_result_r" + round + "_" + dateKey; }
+  function roundBestKey(game, round){ return game + "_best_r" + round; }
 
   function startCountdown(el){
     function tick(){
@@ -747,18 +908,15 @@
 
   /* ================= STOP IT ================= */
   (function(){
-    function targetForDate(dk){
-      const rand = mulberry32(seedFromString("timle-stop-" + dk));
-      const MIN = 3.2, MAX = 12.8;
-      return Math.round((MIN + rand() * (MAX - MIN)) * 100) / 100;
-    }
-    const target = targetForDate(dateKey);
-    document.getElementById("s_targetValue").textContent = target.toFixed(2);
+    let results = [1,2,3].map(r => loadJSON(roundResultKey("stop", r), null));
+    let currentRound = results.findIndex(r => r === null) + 1;
+    if (currentRound === 0) currentRound = ROUND_COUNT + 1; // sentinel: day complete
 
-    let bestData = loadJSON("stop_best", { diffMs: null });
-    let todayResult = loadJSON("stop_result_" + dateKey, null);
     window.stopStreak = loadJSON("stop_streak", { count: 0, lastDate: null });
 
+    const roundTrackerEl = document.getElementById("s_roundTracker");
+    const roundLabelEl = document.getElementById("s_roundLabel");
+    const targetValueEl = document.getElementById("s_targetValue");
     const dial = document.getElementById("s_dial");
     const dialReadout = document.getElementById("s_dialReadout");
     const dialHint = document.getElementById("s_dialHint");
@@ -770,34 +928,99 @@
     const rowYours = document.getElementById("s_rowYours");
     const rowBest = document.getElementById("s_rowBest");
     const gaugeEl = document.getElementById("s_gauge");
+    const pctNumEl = document.getElementById("s_pctNum");
+    const percentileNoteEl = document.querySelector("#panelStop .percentile-note");
+    const daySummaryEl = document.getElementById("s_daySummary");
+    const nextRoundBtn = document.getElementById("s_nextRoundBtn");
     const shareBtn = document.getElementById("s_shareBtn");
     const nextInEl = document.getElementById("s_nextIn");
 
+    let target = null;
     let state = "idle";
     let startTime = null;
 
-    function renderResult(res){
+    function renderRoundTracker(){
+      for (let r = 1; r <= ROUND_COUNT; r++){
+        const dot = roundTrackerEl.querySelector('[data-round="' + r + '"]');
+        dot.className = "round-dot";
+        const res = results[r - 1];
+        if (res){
+          dot.classList.add(tierDotClass(tierFor(res.diffMs).key));
+          dot.textContent = "✓";
+        } else if (r === currentRound){
+          dot.classList.add("current");
+          dot.textContent = r;
+        } else {
+          dot.textContent = r;
+        }
+      }
+    }
+
+    function setupRound(r){
+      currentRound = r;
+      target = roundTarget("stop", r, dateKey);
+      targetValueEl.textContent = formatTargetValue(r, target);
+      roundLabelEl.textContent = "Round " + r + " of " + ROUND_COUNT;
+      state = "idle";
+      dial.className = "dial";
+      dialReadout.textContent = "Tap";
+      dialHint.textContent = "to start";
+      tapInstruction.textContent = "Tap once to start, tap again to stop — no clock shown while it runs. Or use Space.";
+      resultEl.classList.remove("show");
+      daySummaryEl.classList.remove("show");
+      daySummaryEl.innerHTML = "";
+      nextRoundBtn.style.display = "";
+      shareBtn.style.display = "none";
+      renderRoundTracker();
+    }
+
+    function renderDaySummary(){
+      let html = "";
+      for (let r = 1; r <= ROUND_COUNT; r++){
+        const res = results[r - 1];
+        const tier = tierFor(res.diffMs);
+        const t = roundTarget("stop", r, dateKey);
+        html += '<div class="day-summary-row"><span>Round ' + r + ' (' + formatTargetValue(r, t) + 's)</span><b>' + tier.label + ' · ' + res.diffMs + 'ms</b></div>';
+      }
+      daySummaryEl.innerHTML = html;
+      daySummaryEl.classList.add("show");
+      nextRoundBtn.style.display = "none";
+      shareBtn.style.display = "block";
+    }
+
+    function renderResult(res, r){
       const tier = tierFor(res.diffMs);
       tierNameEl.textContent = tier.label;
       tierNameEl.className = "result-tier-name " + tier.key;
       diffMsEl.textContent = res.diffMs;
-      rowTarget.textContent = target.toFixed(2) + "s";
+      rowTarget.textContent = formatTargetValue(r, roundTarget("stop", r, dateKey)) + "s";
       rowYours.textContent = res.yourTime.toFixed(3) + "s";
-      rowBest.textContent = (bestData.diffMs !== null ? bestData.diffMs + " ms" : "—");
+      const bestKey = roundBestKey("stop", r);
+      const best = loadJSON(bestKey, { diffMs: null });
+      rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
       renderGauge(gaugeEl, tier.key);
-      document.getElementById("s_pctNum").textContent = estimatedPercentile(res.diffMs);
+      pctNumEl.textContent = estimatedPercentile(res.diffMs);
+      percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
       startCountdown(nextInEl);
 
       dial.classList.remove("running");
       dial.classList.add("done");
       dialReadout.textContent = res.yourTime.toFixed(3);
-      dialHint.textContent = "today's attempt";
-      tapInstruction.textContent = "Come back tomorrow for a new target.";
+      dialHint.textContent = "round complete";
+
+      if (r < ROUND_COUNT){
+        tapInstruction.textContent = "Nice. Next round is harder.";
+        renderRoundTracker();
+      } else {
+        tapInstruction.textContent = "All 3 rounds done — come back tomorrow.";
+        renderRoundTracker();
+        renderDaySummary();
+      }
     }
 
     function beginRun(){
-      if (state !== "idle") return;
+      if (state !== "idle" || currentRound > ROUND_COUNT) return;
       state = "running";
       startTime = performance.now();
       dial.classList.add("running");
@@ -812,17 +1035,26 @@
       const yourTime = elapsedMs / 1000;
       const diffMs = Math.round(Math.abs(elapsedMs - target * 1000));
       state = "done";
-      if (bestData.diffMs === null || diffMs < bestData.diffMs){
-        bestData.diffMs = diffMs;
-        saveJSON("stop_best", bestData);
+
+      const bestKey = roundBestKey("stop", currentRound);
+      const best = loadJSON(bestKey, { diffMs: null });
+      if (best.diffMs === null || diffMs < best.diffMs){
+        saveJSON(bestKey, { diffMs: diffMs });
       }
+
       const res = { yourTime, diffMs, playedAt: Date.now() };
-      saveJSON("stop_result_" + dateKey, res);
-      todayResult = res;
-      registerStreak("stop_streak", window.stopStreak);
-      refreshStreakDisplay("stop");
-      renderResult(res);
+      const r = currentRound;
+      results[r - 1] = res;
+      saveJSON(roundResultKey("stop", r), res);
+      renderResult(res, r);
       liveRegion.textContent = "Stopped. You were " + diffMs + " milliseconds off.";
+      submitResult("stop", r, diffMs);
+      upgradePercentile("stop", r, diffMs, pctNumEl, percentileNoteEl);
+
+      if (r === ROUND_COUNT){
+        registerStreak("stop_streak", window.stopStreak);
+        refreshStreakDisplay("stop");
+      }
     }
     function handleTap(){
       if (state === "idle") beginRun();
@@ -832,22 +1064,22 @@
     dial.addEventListener("keydown", function(e){
       if (e.key === "Enter" || e.key === " "){ e.preventDefault(); handleTap(); }
     });
+    nextRoundBtn.addEventListener("click", function(){
+      if (currentRound < ROUND_COUNT) setupRound(currentRound + 1);
+    });
 
-    function buildShareText(res){
-      const tier = tierFor(res.diffMs);
-      const rank = tierRank(tier.key);
-      let bar = "";
-      for (let i = 1; i <= 5; i++) bar += (i <= rank ? tierEmoji(tier.key) : "⬜");
-      return [
-        "Timle #" + puzzleNumber + " Stop It — " + bar,
-        "Target " + target.toFixed(2) + "s → You " + res.yourTime.toFixed(3) + "s (Δ" + res.diffMs + "ms)",
-        "Better than " + estimatedPercentile(res.diffMs) + "% of players (est.)",
-        "Streak: " + window.stopStreak.count
-      ].join("\n");
+    function buildShareText(){
+      const lines = ["Timle #" + puzzleNumber + " Stop It"];
+      for (let r = 1; r <= ROUND_COUNT; r++){
+        const res = results[r - 1];
+        const tier = tierFor(res.diffMs);
+        lines.push("R" + r + " " + tierEmoji(tier.key) + " Δ" + res.diffMs + "ms");
+      }
+      lines.push("Streak: " + window.stopStreak.count);
+      return lines.join("\n");
     }
     shareBtn.addEventListener("click", async function(){
-      if (!todayResult) return;
-      const text = buildShareText(todayResult);
+      const text = buildShareText();
       try{
         await navigator.clipboard.writeText(text);
         shareBtn.textContent = "Copied ✓";
@@ -871,26 +1103,45 @@
       }
     });
 
-    if (todayResult){
-      state = "done";
-      renderResult(todayResult);
+    if (currentRound > ROUND_COUNT){
+      roundLabelEl.textContent = "All rounds complete";
+      renderRoundTracker();
+      dial.classList.add("done");
+      dialReadout.textContent = "✓";
+      dialHint.textContent = "today's rounds";
+      tapInstruction.textContent = "Come back tomorrow for new rounds.";
+      const res3 = results[2];
+      const tier = tierFor(res3.diffMs);
+      tierNameEl.textContent = tier.label;
+      tierNameEl.className = "result-tier-name " + tier.key;
+      diffMsEl.textContent = res3.diffMs;
+      rowTarget.textContent = formatTargetValue(3, roundTarget("stop", 3, dateKey)) + "s";
+      rowYours.textContent = res3.yourTime.toFixed(3) + "s";
+      const best3 = loadJSON(roundBestKey("stop", 3), { diffMs: null });
+      rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
+      renderGauge(gaugeEl, tier.key);
+      pctNumEl.textContent = estimatedPercentile(res3.diffMs);
+      resultEl.classList.add("show");
+      startCountdown(nextInEl);
+      renderDaySummary();
+    } else {
+      setupRound(currentRound);
     }
   })();
 
   /* ================= GUESS IT ================= */
   (function(){
-    function windowForDate(dk){
-      const rand = mulberry32(seedFromString("timle-guess-" + dk));
-      const MIN = 3500, MAX = 14500; // ms
-      const delayMs = Math.round(MIN + rand() * (MAX - MIN));
-      return delayMs;
-    }
-    const delayMs = windowForDate(dateKey);
+    const RANGE_LABEL = { 1: "2s – 9s", 2: "2.5s – 11.5s", 3: "3.00s – 14.99s" };
 
-    let bestData = loadJSON("guess_best", { diffMs: null });
-    let todayResult = loadJSON("guess_result_" + dateKey, null);
+    let results = [1,2,3].map(r => loadJSON(roundResultKey("guess", r), null));
+    let currentRound = results.findIndex(r => r === null) + 1;
+    if (currentRound === 0) currentRound = ROUND_COUNT + 1;
+
     window.guessStreak = loadJSON("guess_streak", { count: 0, lastDate: null });
 
+    const roundTrackerEl = document.getElementById("g_roundTracker");
+    const roundLabelEl = document.getElementById("g_roundLabel");
+    const targetValueEl = document.getElementById("g_targetValue");
     const dial = document.getElementById("g_dial");
     const dialReadout = document.getElementById("g_dialReadout");
     const dialHint = document.getElementById("g_dialHint");
@@ -905,13 +1156,17 @@
     const rowYours = document.getElementById("g_rowYours");
     const rowBest = document.getElementById("g_rowBest");
     const gaugeEl = document.getElementById("g_gauge");
+    const pctNumEl = document.getElementById("g_pctNum");
+    const percentileNoteEl = document.querySelector("#panelGuess .percentile-note");
+    const daySummaryEl = document.getElementById("g_daySummary");
+    const nextRoundBtn = document.getElementById("g_nextRoundBtn");
     const shareBtn = document.getElementById("g_shareBtn");
     const nextInEl = document.getElementById("g_nextIn");
 
     let state = "idle"; // idle | listening | awaitingGuess | done
     let startTime = null;
     let actualElapsedMs = null;
-    let beepTimeoutId = null;
+    let delaySeconds = null;
     let audioCtx = null;
 
     function playBeep(){
@@ -930,29 +1185,89 @@
       }catch(e){ /* audio unsupported — visual cue still fires */ }
     }
 
-    function renderResult(res){
+    function renderRoundTracker(){
+      for (let r = 1; r <= ROUND_COUNT; r++){
+        const dot = roundTrackerEl.querySelector('[data-round="' + r + '"]');
+        dot.className = "round-dot";
+        const res = results[r - 1];
+        if (res){
+          dot.classList.add(tierDotClass(tierFor(res.diffMs).key));
+          dot.textContent = "✓";
+        } else if (r === currentRound){
+          dot.classList.add("current");
+          dot.textContent = r;
+        } else {
+          dot.textContent = r;
+        }
+      }
+    }
+
+    function setupRound(r){
+      currentRound = r;
+      delaySeconds = roundTarget("guess", r, dateKey);
+      targetValueEl.textContent = RANGE_LABEL[r];
+      roundLabelEl.textContent = "Round " + r + " of " + ROUND_COUNT;
+      state = "idle";
+      dial.className = "dial";
+      dialReadout.textContent = "Tap";
+      dialHint.textContent = "to start";
+      tapInstruction.textContent = "Tap to start. A beep will fire at a random moment — then type how long you think it took.";
+      guessForm.classList.remove("show");
+      resultEl.classList.remove("show");
+      daySummaryEl.classList.remove("show");
+      daySummaryEl.innerHTML = "";
+      nextRoundBtn.style.display = "";
+      shareBtn.style.display = "none";
+      renderRoundTracker();
+    }
+
+    function renderDaySummary(){
+      let html = "";
+      for (let r = 1; r <= ROUND_COUNT; r++){
+        const res = results[r - 1];
+        const tier = tierFor(res.diffMs);
+        html += '<div class="day-summary-row"><span>Round ' + r + '</span><b>' + tier.label + ' · ' + res.diffMs + 'ms</b></div>';
+      }
+      daySummaryEl.innerHTML = html;
+      daySummaryEl.classList.add("show");
+      nextRoundBtn.style.display = "none";
+      shareBtn.style.display = "block";
+    }
+
+    function renderResult(res, r){
       const tier = tierFor(res.diffMs);
       tierNameEl.textContent = tier.label;
       tierNameEl.className = "result-tier-name " + tier.key;
       diffMsEl.textContent = res.diffMs;
       rowActual.textContent = (res.actualMs / 1000).toFixed(3) + "s";
       rowYours.textContent = res.guessSeconds.toFixed(2) + "s";
-      rowBest.textContent = (bestData.diffMs !== null ? bestData.diffMs + " ms" : "—");
+      const bestKey = roundBestKey("guess", r);
+      const best = loadJSON(bestKey, { diffMs: null });
+      rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
       renderGauge(gaugeEl, tier.key);
-      document.getElementById("g_pctNum").textContent = estimatedPercentile(res.diffMs);
+      pctNumEl.textContent = estimatedPercentile(res.diffMs);
+      percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
       startCountdown(nextInEl);
 
       dial.classList.remove("running", "beeped");
       dial.classList.add("done");
       dialReadout.textContent = "🔔";
-      dialHint.textContent = "today's attempt";
+      dialHint.textContent = "round complete";
       guessForm.classList.remove("show");
-      tapInstruction.textContent = "Come back tomorrow for a new window.";
+
+      if (r < ROUND_COUNT){
+        tapInstruction.textContent = "Nice. Next round is harder.";
+        renderRoundTracker();
+      } else {
+        tapInstruction.textContent = "All 3 rounds done — come back tomorrow.";
+        renderRoundTracker();
+        renderDaySummary();
+      }
     }
 
     function beginRun(){
-      if (state !== "idle") return;
+      if (state !== "idle" || currentRound > ROUND_COUNT) return;
       state = "listening";
       startTime = performance.now();
       dial.classList.add("running");
@@ -961,7 +1276,7 @@
       tapInstruction.textContent = "Stay ready. The beep can land anywhere in the window.";
       liveRegion.textContent = "Listening started.";
 
-      beepTimeoutId = setTimeout(function(){
+      setTimeout(function(){
         actualElapsedMs = performance.now() - startTime;
         playBeep();
         state = "awaitingGuess";
@@ -974,7 +1289,7 @@
         guessInput.value = "";
         guessInput.focus();
         liveRegion.textContent = "Beep. Enter how many seconds you think passed.";
-      }, delayMs);
+      }, delaySeconds * 1000);
     }
 
     function submitGuess(){
@@ -985,17 +1300,25 @@
       const diffMs = Math.round(Math.abs(guessMs - actualElapsedMs));
       state = "done";
 
-      if (bestData.diffMs === null || diffMs < bestData.diffMs){
-        bestData.diffMs = diffMs;
-        saveJSON("guess_best", bestData);
+      const bestKey = roundBestKey("guess", currentRound);
+      const best = loadJSON(bestKey, { diffMs: null });
+      if (best.diffMs === null || diffMs < best.diffMs){
+        saveJSON(bestKey, { diffMs: diffMs });
       }
+
       const res = { guessSeconds: val, actualMs: actualElapsedMs, diffMs, playedAt: Date.now() };
-      saveJSON("guess_result_" + dateKey, res);
-      todayResult = res;
-      registerStreak("guess_streak", window.guessStreak);
-      refreshStreakDisplay("guess");
-      renderResult(res);
+      const r = currentRound;
+      results[r - 1] = res;
+      saveJSON(roundResultKey("guess", r), res);
+      renderResult(res, r);
       liveRegion.textContent = "Submitted. You were " + diffMs + " milliseconds off.";
+      submitResult("guess", r, diffMs);
+      upgradePercentile("guess", r, diffMs, pctNumEl, percentileNoteEl);
+
+      if (r === ROUND_COUNT){
+        registerStreak("guess_streak", window.guessStreak);
+        refreshStreakDisplay("guess");
+      }
     }
 
     dial.addEventListener("click", function(){ if (state === "idle") beginRun(); });
@@ -1009,22 +1332,22 @@
       if (e.key === "Enter" && !submitBtn.disabled){ e.preventDefault(); submitGuess(); }
     });
     submitBtn.addEventListener("click", submitGuess);
+    nextRoundBtn.addEventListener("click", function(){
+      if (currentRound < ROUND_COUNT) setupRound(currentRound + 1);
+    });
 
-    function buildShareText(res){
-      const tier = tierFor(res.diffMs);
-      const rank = tierRank(tier.key);
-      let bar = "";
-      for (let i = 1; i <= 5; i++) bar += (i <= rank ? tierEmoji(tier.key) : "⬜");
-      return [
-        "Timle #" + puzzleNumber + " Guess It — " + bar,
-        "Actual " + (res.actualMs / 1000).toFixed(3) + "s → You guessed " + res.guessSeconds.toFixed(2) + "s (Δ" + res.diffMs + "ms)",
-        "Better than " + estimatedPercentile(res.diffMs) + "% of players (est.)",
-        "Streak: " + window.guessStreak.count
-      ].join("\n");
+    function buildShareText(){
+      const lines = ["Timle #" + puzzleNumber + " Guess It"];
+      for (let r = 1; r <= ROUND_COUNT; r++){
+        const res = results[r - 1];
+        const tier = tierFor(res.diffMs);
+        lines.push("R" + r + " " + tierEmoji(tier.key) + " Δ" + res.diffMs + "ms");
+      }
+      lines.push("Streak: " + window.guessStreak.count);
+      return lines.join("\n");
     }
     shareBtn.addEventListener("click", async function(){
-      if (!todayResult) return;
-      const text = buildShareText(todayResult);
+      const text = buildShareText();
       try{
         await navigator.clipboard.writeText(text);
         shareBtn.textContent = "Copied ✓";
@@ -1039,11 +1362,32 @@
       }
     });
 
-    if (todayResult){
-      state = "done";
-      renderResult(todayResult);
+    if (currentRound > ROUND_COUNT){
+      roundLabelEl.textContent = "All rounds complete";
+      renderRoundTracker();
+      dial.classList.add("done");
+      dialReadout.textContent = "✓";
+      dialHint.textContent = "today's rounds";
+      tapInstruction.textContent = "Come back tomorrow for new rounds.";
+      const res3 = results[2];
+      const tier = tierFor(res3.diffMs);
+      tierNameEl.textContent = tier.label;
+      tierNameEl.className = "result-tier-name " + tier.key;
+      diffMsEl.textContent = res3.diffMs;
+      rowActual.textContent = (res3.actualMs / 1000).toFixed(3) + "s";
+      rowYours.textContent = res3.guessSeconds.toFixed(2) + "s";
+      const best3 = loadJSON(roundBestKey("guess", 3), { diffMs: null });
+      rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
+      renderGauge(gaugeEl, tier.key);
+      pctNumEl.textContent = estimatedPercentile(res3.diffMs);
+      resultEl.classList.add("show");
+      startCountdown(nextInEl);
+      renderDaySummary();
+    } else {
+      setupRound(currentRound);
     }
   })();
+
 
   /* ---------- info panel ---------- */
   const infoToggle = document.getElementById("infoToggle");
