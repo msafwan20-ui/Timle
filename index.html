@@ -449,6 +449,25 @@
   }
   .day-summary-row b{ color:var(--paper); font-weight:600; }
 
+  .composite-block{
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+    text-align:center;
+  }
+  .composite-pct{
+    font-size:15px;
+    color:var(--paper);
+    margin-bottom:10px;
+  }
+  .composite-pct b{ color:var(--mint); font-weight:700; }
+  .composite-curve{ width:100%; line-height:0; }
+  .composite-note{
+    margin-top:8px;
+    font-size:11px;
+    color:var(--paper-faint);
+  }
+
   /* archive banner */
   .archive-banner{
     display:none;
@@ -1024,6 +1043,59 @@
     return Math.round(Math.max(1, Math.min(99, p)));
   }
 
+  // Acklam's rational approximation of the inverse normal CDF — turns a
+  // percentile (0–1) into a z-score, so we can place a marker at the right
+  // spot on a standard bell curve.
+  function invNormalCDF(p){
+    p = Math.max(0.0001, Math.min(0.9999, p));
+    const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+    const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+    const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+    const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+    const pLow = 0.02425, pHigh = 1 - pLow;
+    let q, r;
+    if (p < pLow){
+      q = Math.sqrt(-2 * Math.log(p));
+      return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+    } else if (p <= pHigh){
+      q = p - 0.5; r = q*q;
+      return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+    } else {
+      q = Math.sqrt(-2 * Math.log(1 - p));
+      return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+    }
+  }
+
+  // Renders a standard bell curve into `el`, with a marker showing where
+  // `percentile` (0–100) falls along it.
+  function renderBellCurve(el, percentile){
+    const z = Math.max(-3.2, Math.min(3.2, invNormalCDF(percentile / 100)));
+    const W = 320, H = 110, PAD = 8;
+    const xMin = -3.5, xMax = 3.5;
+    function xToPx(x){ return PAD + (x - xMin) / (xMax - xMin) * (W - 2 * PAD); }
+    function pdf(x){ return Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI); }
+    const yMax = pdf(0);
+    function yToPx(y){ return (H - PAD) - (y / yMax) * (H - 2 * PAD); }
+
+    let path = "M " + xToPx(xMin).toFixed(1) + " " + yToPx(0).toFixed(1);
+    const steps = 60;
+    for (let i = 0; i <= steps; i++){
+      const x = xMin + (xMax - xMin) * i / steps;
+      path += " L " + xToPx(x).toFixed(1) + " " + yToPx(pdf(x)).toFixed(1);
+    }
+    path += " L " + xToPx(xMax).toFixed(1) + " " + yToPx(0).toFixed(1) + " Z";
+
+    const mx = xToPx(z).toFixed(1);
+    const my = yToPx(pdf(z)).toFixed(1);
+
+    el.innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" preserveAspectRatio="xMidYMid meet">' +
+        '<path d="' + path + '" fill="var(--amber-soft)" stroke="var(--amber)" stroke-width="1.5" />' +
+        '<line x1="' + mx + '" y1="' + (H - PAD) + '" x2="' + mx + '" y2="' + my + '" stroke="var(--mint)" stroke-width="2" stroke-dasharray="3,3" />' +
+        '<circle cx="' + mx + '" cy="' + my + '" r="4.5" fill="var(--mint)" />' +
+      '</svg>';
+  }
+
   /* ---------- backend (Supabase) ---------- */
   // Fill these in from your Supabase project's Settings → API page, then
   // BACKEND_ENABLED flips true automatically. Until you do, the game runs
@@ -1312,8 +1384,16 @@
         const t = roundTarget("stop", r, activeDate);
         html += '<div class="day-summary-row"><span>Round ' + r + ' (' + formatTargetValue(r, t) + 's)</span><b>' + label + ' · ' + res.diffMs + 'ms</b></div>';
       }
+      const avgDiff = (results[0].diffMs + results[1].diffMs + results[2].diffMs) / 3;
+      const compositePct = estimatedPercentile(avgDiff);
+      html += '<div class="composite-block">' +
+        '<div class="composite-pct">Overall today: better than <b>' + compositePct + '%</b> of players</div>' +
+        '<div class="composite-curve" id="s_bellCurve"></div>' +
+        '<div class="composite-note">Modeled distribution, based on your average error across all 3 rounds.</div>' +
+      '</div>';
       daySummaryEl.innerHTML = html;
       daySummaryEl.classList.add("show");
+      renderBellCurve(document.getElementById("s_bellCurve"), compositePct);
       nextRoundBtn.style.display = "none";
       shareBtn.style.display = "block";
     }
@@ -1568,8 +1648,16 @@
         const label = res.tierKey === "perfect" ? "Perfect!" : tierFor(res.diffMs).label;
         html += '<div class="day-summary-row"><span>Round ' + r + '</span><b>' + label + ' · ' + res.diffMs + 'ms</b></div>';
       }
+      const avgDiff = (results[0].diffMs + results[1].diffMs + results[2].diffMs) / 3;
+      const compositePct = estimatedPercentile(avgDiff);
+      html += '<div class="composite-block">' +
+        '<div class="composite-pct">Overall today: better than <b>' + compositePct + '%</b> of players</div>' +
+        '<div class="composite-curve" id="g_bellCurve"></div>' +
+        '<div class="composite-note">Modeled distribution, based on your average error across all 3 rounds.</div>' +
+      '</div>';
       daySummaryEl.innerHTML = html;
       daySummaryEl.classList.add("show");
+      renderBellCurve(document.getElementById("g_bellCurve"), compositePct);
       nextRoundBtn.style.display = "none";
       shareBtn.style.display = "block";
     }
