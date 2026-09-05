@@ -455,6 +455,33 @@
     border-top:1px solid var(--line);
     text-align:center;
   }
+  .timle-score{
+    margin-bottom:16px;
+  }
+  .timle-score-label{
+    font-size:12px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--paper-faint);
+    margin-bottom:4px;
+  }
+  .timle-score-value{
+    font-family:'JetBrains Mono', monospace;
+    font-size:44px;
+    font-weight:700;
+    color:#FFD54A;
+    line-height:1;
+  }
+  .timle-score-value .of1000{
+    font-size:20px;
+    color:var(--paper-dim);
+    font-weight:500;
+  }
+  .timle-score-best{
+    font-size:12px;
+    color:var(--paper-faint);
+    margin-top:4px;
+  }
   .composite-pct{
     font-size:15px;
     color:var(--paper);
@@ -1043,6 +1070,19 @@
     return Math.round(Math.max(1, Math.min(99, p)));
   }
 
+  // Timle Score: a single 0–1000 number for the day, split evenly across
+  // the 3 rounds (~333.3 pts each). Same decay curve as the percentile
+  // estimate, for consistency — but a "Perfect" round always earns its
+  // full share, since exact matches are the whole point.
+  function computeTimleScore(results){
+    const maxShare = 1000 / results.length;
+    let total = 0;
+    results.forEach(res => {
+      total += (res.tierKey === "perfect") ? maxShare : maxShare * Math.exp(-res.diffMs / 300);
+    });
+    return Math.max(0, Math.min(1000, Math.round(total)));
+  }
+
   // Acklam's rational approximation of the inverse normal CDF — turns a
   // percentile (0–1) into a z-score, so we can place a marker at the right
   // spot on a standard bell curve.
@@ -1386,7 +1426,18 @@
       }
       const avgDiff = (results[0].diffMs + results[1].diffMs + results[2].diffMs) / 3;
       const compositePct = estimatedPercentile(avgDiff);
+      const timleScore = computeTimleScore(results);
+      const bestScoreData = loadJSON("stop_score_best", { score: null });
+      if (bestScoreData.score === null || timleScore > bestScoreData.score){
+        saveJSON("stop_score_best", { score: timleScore });
+        bestScoreData.score = timleScore;
+      }
       html += '<div class="composite-block">' +
+        '<div class="timle-score">' +
+          '<div class="timle-score-label">Timle Score</div>' +
+          '<div class="timle-score-value">' + timleScore + '<span class="of1000">/1000</span></div>' +
+          '<div class="timle-score-best">Personal best: ' + bestScoreData.score + '/1000</div>' +
+        '</div>' +
         '<div class="composite-pct">Overall today: better than <b>' + compositePct + '%</b> of players</div>' +
         '<div class="composite-curve" id="s_bellCurve"></div>' +
         '<div class="composite-note">Modeled distribution, based on your average error across all 3 rounds.</div>' +
@@ -1488,6 +1539,7 @@
         const res = results[r - 1];
         lines.push("R" + r + " " + tierEmoji(res.tierKey) + " Δ" + res.diffMs + "ms");
       }
+      lines.push("Score: " + computeTimleScore(results) + "/1000");
       lines.push("Streak: " + window.stopStreak.count);
       return lines.join("\n");
     }
@@ -1650,7 +1702,18 @@
       }
       const avgDiff = (results[0].diffMs + results[1].diffMs + results[2].diffMs) / 3;
       const compositePct = estimatedPercentile(avgDiff);
+      const timleScore = computeTimleScore(results);
+      const bestScoreData = loadJSON("guess_score_best", { score: null });
+      if (bestScoreData.score === null || timleScore > bestScoreData.score){
+        saveJSON("guess_score_best", { score: timleScore });
+        bestScoreData.score = timleScore;
+      }
       html += '<div class="composite-block">' +
+        '<div class="timle-score">' +
+          '<div class="timle-score-label">Timle Score</div>' +
+          '<div class="timle-score-value">' + timleScore + '<span class="of1000">/1000</span></div>' +
+          '<div class="timle-score-best">Personal best: ' + bestScoreData.score + '/1000</div>' +
+        '</div>' +
         '<div class="composite-pct">Overall today: better than <b>' + compositePct + '%</b> of players</div>' +
         '<div class="composite-curve" id="g_bellCurve"></div>' +
         '<div class="composite-note">Modeled distribution, based on your average error across all 3 rounds.</div>' +
@@ -1773,6 +1836,7 @@
         const res = results[r - 1];
         lines.push("R" + r + " " + tierEmoji(res.tierKey) + " Δ" + res.diffMs + "ms");
       }
+      lines.push("Score: " + computeTimleScore(results) + "/1000");
       lines.push("Streak: " + window.guessStreak.count);
       return lines.join("\n");
     }
