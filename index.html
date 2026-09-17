@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"> 
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>Timle — stop it exactly on time</title>
 <meta name="description" content="Two daily timing challenges. No visible clock. Trust your internal sense of time.">
@@ -17,6 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --ink:#0B0D10;
@@ -583,6 +584,91 @@
     margin-top:24px;
   }
 
+  /* leaderboard */
+  .lb-name-row{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:16px;
+    font-size:13px;
+    color:var(--paper-dim);
+  }
+  .lb-name-row b{ color:var(--paper); }
+  .lb-name-row button{
+    font-family:inherit;
+    font-size:12px;
+    color:var(--paper-dim);
+    background:none;
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:6px 10px;
+    cursor:pointer;
+  }
+  .lb-name-row button:hover{ border-color:var(--paper-faint); color:var(--paper); }
+
+  .lb-game-toggle{
+    width:100%;
+    display:flex;
+    gap:8px;
+    margin-top:16px;
+  }
+  .lb-game-btn{
+    flex:1;
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    padding:10px;
+    border-radius:9px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--paper-dim);
+    cursor:pointer;
+  }
+  .lb-game-btn[aria-selected="true"]{
+    background:var(--panel-2);
+    color:var(--paper);
+    border-color:var(--paper-faint);
+  }
+
+  .lb-list{
+    width:100%;
+    margin-top:16px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .lb-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 14px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--panel);
+    font-size:14px;
+  }
+  .lb-row.me{
+    border-color:var(--green);
+    background:var(--green-soft);
+  }
+  .lb-rank{
+    font-family:'JetBrains Mono', monospace;
+    width:26px;
+    text-align:center;
+    color:var(--paper-faint);
+    font-weight:700;
+  }
+  .lb-row:nth-child(1) .lb-rank{ color:#FFD54A; }
+  .lb-row:nth-child(2) .lb-rank{ color:#C9CDD3; }
+  .lb-row:nth-child(3) .lb-rank{ color:#D8935B; }
+  .lb-name{ flex:1; color:var(--paper); }
+  .lb-score{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    color:var(--mint);
+  }
+
   /* help button + modal */
   .header-right{
     display:flex;
@@ -784,6 +870,10 @@
       Archives
       <span class="tab-sub">replay past puzzles</span>
     </button>
+    <button class="tab" id="tabLeaderboard" role="tab" aria-selected="false" aria-controls="panelLeaderboard">
+      Leaderboard
+      <span class="tab-sub">today's top scores</span>
+    </button>
   </div>
 
   <!-- ================= STOP IT ================= -->
@@ -907,7 +997,43 @@
     <div class="archive-list" id="archiveList"></div>
   </section>
 
+  <!-- ================= LEADERBOARD ================= -->
+  <section class="panel" id="panelLeaderboard" role="tabpanel" aria-labelledby="tabLeaderboard" hidden>
+    <div class="archive-note" id="lbStatusNote">Loading today's leaderboard…</div>
+
+    <div class="lb-name-row">
+      <span id="lbYouAre">Not signed in</span>
+      <button id="lbAuthBtn">Sign Up / Log In</button>
+    </div>
+
+    <div class="lb-game-toggle" role="tablist" aria-label="Choose leaderboard">
+      <button class="lb-game-btn" id="lbTabStop" aria-selected="true">Stop It</button>
+      <button class="lb-game-btn" id="lbTabGuess" aria-selected="false">Guess It</button>
+    </div>
+
+    <div class="lb-list" id="lbListStop"></div>
+    <div class="lb-list" id="lbListGuess" hidden></div>
+  </section>
+
   <div aria-live="polite" class="sr-only" id="liveRegion"></div>
+</div>
+
+<div class="modal-overlay" id="authModal">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <button class="modal-close" id="authClose" aria-label="Close">×</button>
+    <div class="modal-title" id="authTitle">Create your account</div>
+    <div class="modal-sub" id="authSub">Username, email, and password — needed to appear on the leaderboard.</div>
+
+    <input class="guess-input" id="authUsername" type="text" maxlength="20" placeholder="Username" autocomplete="off" style="margin-bottom:10px;">
+    <input class="guess-input" id="authEmail" type="email" placeholder="Email" autocomplete="email" style="margin-bottom:10px;">
+    <input class="guess-input" id="authPassword" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password" style="margin-bottom:10px;">
+
+    <div id="authError" style="display:none; color:var(--red); font-size:13px; margin-bottom:10px;"></div>
+    <div id="authInfo" style="display:none; color:var(--mint); font-size:13px; margin-bottom:10px;"></div>
+
+    <button class="btn primary modal-cta" id="authSubmitBtn">Sign Up</button>
+    <button class="info-toggle" id="authToggleMode" style="margin-top:14px;">Already have an account? Log in</button>
+  </div>
 </div>
 
 <div class="modal-overlay" id="helpModal">
@@ -1235,6 +1361,131 @@
     }
   }
 
+  /* ---------- real auth (Supabase Auth) ---------- */
+  const supabaseClient = BACKEND_ENABLED
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+  let currentUser = null;      // { id, email } once signed in
+  let currentUsername = null;  // from the profiles table
+
+  async function fetchMyUsername(userId){
+    try{
+      const res = await fetch(SUPABASE_URL + "/rest/v1/profiles?id=eq." + userId + "&select=username", {
+        headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY }
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      return rows.length ? rows[0].username : null;
+    }catch(e){ return null; }
+  }
+
+  async function signUp(username, email, password){
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) return { error: error.message };
+    if (!data.user) return { error: "Signup failed — please try again." };
+
+    // Create the profile row (username <-> user id link).
+    try{
+      const res = await fetch(SUPABASE_URL + "/rest/v1/profiles", {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + (data.session ? data.session.access_token : SUPABASE_ANON_KEY),
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ id: data.user.id, username: username })
+      });
+      if (!res.ok){
+        const body = await res.text();
+        if (body.indexOf("duplicate") !== -1 || body.indexOf("unique") !== -1){
+          return { error: "That username is already taken." };
+        }
+        return { error: "Account created, but the username couldn't be saved. Try logging in." };
+      }
+    }catch(e){
+      return { error: "Account created, but the username couldn't be saved. Try logging in." };
+    }
+
+    if (!data.session){
+      return { info: "Account created! Check your email to confirm, then log in." };
+    }
+    currentUser = { id: data.user.id, email: data.user.email };
+    currentUsername = username;
+    return { success: true };
+  }
+
+  async function logIn(email, password){
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    currentUser = { id: data.user.id, email: data.user.email };
+    currentUsername = await fetchMyUsername(data.user.id);
+    return { success: true };
+  }
+
+  async function logOut(){
+    await supabaseClient.auth.signOut();
+    currentUser = null;
+    currentUsername = null;
+    refreshAuthUI();
+  }
+
+  async function restoreSession(){
+    if (!supabaseClient) return;
+    const { data } = await supabaseClient.auth.getSession();
+    if (data.session && data.session.user){
+      currentUser = { id: data.session.user.id, email: data.session.user.email };
+      currentUsername = await fetchMyUsername(data.session.user.id);
+    }
+    refreshAuthUI();
+  }
+
+  /* ---------- leaderboard (daily_scores table) ---------- */
+  async function submitDailyScore(game, dk, timleScore){
+    if (!BACKEND_ENABLED || !currentUser || !currentUsername) return; // must be signed in
+    try{
+      const { data } = await supabaseClient.auth.getSession();
+      const token = data.session ? data.session.access_token : SUPABASE_ANON_KEY;
+      await fetch(SUPABASE_URL + "/rest/v1/daily_scores", {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ user_id: currentUser.id, puzzle_date: dk, game: game, username: currentUsername, timle_score: timleScore })
+      });
+    }catch(e){ /* offline or backend unreachable — local result still stands */ }
+  }
+
+  async function fetchLeaderboard(game, dk){
+    if (!BACKEND_ENABLED) return [];
+    try{
+      const url = SUPABASE_URL + "/rest/v1/daily_scores?puzzle_date=eq." + dk + "&game=eq." + game + "&select=username,timle_score";
+      const res = await fetch(url, {
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + SUPABASE_ANON_KEY
+        }
+      });
+      if (!res.ok) return [];
+      const rows = await res.json();
+      // Keep each player's best score only, in case of a resubmission.
+      const bestByName = {};
+      rows.forEach(r => {
+        if (!bestByName[r.username] || r.timle_score > bestByName[r.username]){
+          bestByName[r.username] = r.timle_score;
+        }
+      });
+      return Object.keys(bestByName)
+        .map(name => ({ username: name, timle_score: bestByName[name] }))
+        .sort((a, b) => b.timle_score - a.timle_score)
+        .slice(0, 20);
+    }catch(e){ return []; }
+  }
+
   /* ---------- three-round difficulty ladder (Stop It only) ---------- */
   const ROUND_COUNT = 3;
   // Round 1: whole seconds (e.g. 4). Round 2: half-seconds (e.g. 6.5).
@@ -1292,25 +1543,32 @@
   const tabStop = document.getElementById("tabStop");
   const tabGuess = document.getElementById("tabGuess");
   const tabArchive = document.getElementById("tabArchive");
+  const tabLeaderboard = document.getElementById("tabLeaderboard");
   const panelStop = document.getElementById("panelStop");
   const panelGuess = document.getElementById("panelGuess");
   const panelArchive = document.getElementById("panelArchive");
+  const panelLeaderboard = document.getElementById("panelLeaderboard");
 
   function selectTab(which){
     tabStop.setAttribute("aria-selected", which === "stop" ? "true" : "false");
     tabGuess.setAttribute("aria-selected", which === "guess" ? "true" : "false");
     tabArchive.setAttribute("aria-selected", which === "archive" ? "true" : "false");
+    tabLeaderboard.setAttribute("aria-selected", which === "leaderboard" ? "true" : "false");
     panelStop.classList.toggle("active", which === "stop");
     panelGuess.classList.toggle("active", which === "guess");
     panelArchive.classList.toggle("active", which === "archive");
+    panelLeaderboard.classList.toggle("active", which === "leaderboard");
     panelStop.hidden = which !== "stop";
     panelGuess.hidden = which !== "guess";
     panelArchive.hidden = which !== "archive";
+    panelLeaderboard.hidden = which !== "leaderboard";
     if (which === "stop" || which === "guess") refreshStreakDisplay(which);
+    if (which === "leaderboard") refreshLeaderboardView();
   }
   tabStop.addEventListener("click", () => selectTab("stop"));
   tabGuess.addEventListener("click", () => selectTab("guess"));
   tabArchive.addEventListener("click", () => selectTab("archive"));
+  tabLeaderboard.addEventListener("click", () => selectTab("leaderboard"));
 
   const streakCountEl = document.getElementById("streakCount");
   const streakPillEl = document.getElementById("streakPill");
@@ -1458,7 +1716,7 @@
       renderArchiveBanner();
     }
 
-    function renderDaySummary(){
+    function renderDaySummary(isFresh){
       let html = "";
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
@@ -1474,6 +1732,9 @@
       if (bestScoreData.score === null || timleScore > bestScoreData.score){
         saveJSON("stop_score_best", { score: timleScore });
         bestScoreData.score = timleScore;
+      }
+      if (isFresh && activeDate === dateKey){
+        submitDailyScore("stop", activeDate, timleScore);
       }
       html += '<div class="composite-block">' +
         '<div class="timle-score">' +
@@ -1520,7 +1781,7 @@
       } else {
         tapInstruction.textContent = "All 3 rounds done — come back tomorrow.";
         renderRoundTracker();
-        renderDaySummary();
+        renderDaySummary(true);
       }
     }
 
@@ -1740,7 +2001,7 @@
       renderArchiveBanner();
     }
 
-    function renderDaySummary(){
+    function renderDaySummary(isFresh){
       let html = "";
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
@@ -1755,6 +2016,9 @@
       if (bestScoreData.score === null || timleScore > bestScoreData.score){
         saveJSON("guess_score_best", { score: timleScore });
         bestScoreData.score = timleScore;
+      }
+      if (isFresh && activeDate === dateKey){
+        submitDailyScore("guess", activeDate, timleScore);
       }
       html += '<div class="composite-block">' +
         '<div class="timle-score">' +
@@ -1802,7 +2066,7 @@
       } else {
         tapInstruction.textContent = "All 3 rounds done — come back tomorrow.";
         renderRoundTracker();
-        renderDaySummary();
+        renderDaySummary(true);
       }
     }
 
@@ -1947,6 +2211,158 @@
   })();
 
 
+  /* ---------- auth modal ---------- */
+  const authModal = document.getElementById("authModal");
+  const authClose = document.getElementById("authClose");
+  const authUsername = document.getElementById("authUsername");
+  const authEmail = document.getElementById("authEmail");
+  const authPassword = document.getElementById("authPassword");
+  const authError = document.getElementById("authError");
+  const authInfo = document.getElementById("authInfo");
+  const authSubmitBtn = document.getElementById("authSubmitBtn");
+  const authToggleMode = document.getElementById("authToggleMode");
+  const authTitle = document.getElementById("authTitle");
+  const authSub = document.getElementById("authSub");
+  const lbAuthBtn = document.getElementById("lbAuthBtn");
+  const lbYouAre = document.getElementById("lbYouAre");
+  let authMode = "signup"; // or "login"
+
+  function setAuthMode(mode){
+    authMode = mode;
+    authError.style.display = "none";
+    authInfo.style.display = "none";
+    if (mode === "signup"){
+      authTitle.textContent = "Create your account";
+      authSub.textContent = "Username, email, and password — needed to appear on the leaderboard.";
+      authUsername.style.display = "block";
+      authSubmitBtn.textContent = "Sign Up";
+      authToggleMode.textContent = "Already have an account? Log in";
+    } else {
+      authTitle.textContent = "Log in";
+      authSub.textContent = "Welcome back.";
+      authUsername.style.display = "none";
+      authSubmitBtn.textContent = "Log In";
+      authToggleMode.textContent = "Need an account? Sign up";
+    }
+  }
+  authToggleMode.addEventListener("click", () => setAuthMode(authMode === "signup" ? "login" : "signup"));
+
+  function openAuthModal(){
+    authError.style.display = "none";
+    authInfo.style.display = "none";
+    authModal.classList.add("show");
+  }
+  function closeAuthModal(){
+    authModal.classList.remove("show");
+  }
+  authClose.addEventListener("click", closeAuthModal);
+  authModal.addEventListener("click", (e) => { if (e.target === authModal) closeAuthModal(); });
+
+  function refreshAuthUI(){
+    if (currentUser && currentUsername){
+      lbYouAre.innerHTML = "Signed in as <b>" + currentUsername + "</b>";
+      lbAuthBtn.textContent = "Log Out";
+    } else {
+      lbYouAre.textContent = "Not signed in";
+      lbAuthBtn.textContent = "Sign Up / Log In";
+    }
+  }
+  lbAuthBtn.addEventListener("click", function(){
+    if (currentUser){
+      logOut();
+    } else {
+      setAuthMode("signup");
+      openAuthModal();
+    }
+  });
+
+  authSubmitBtn.addEventListener("click", async function(){
+    authError.style.display = "none";
+    authInfo.style.display = "none";
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+    if (!email || !password){
+      authError.textContent = "Email and password are required.";
+      authError.style.display = "block";
+      return;
+    }
+    authSubmitBtn.disabled = true;
+    let result;
+    if (authMode === "signup"){
+      const username = authUsername.value.trim().slice(0, 20);
+      if (!username){
+        authError.textContent = "Pick a username.";
+        authError.style.display = "block";
+        authSubmitBtn.disabled = false;
+        return;
+      }
+      result = await signUp(username, email, password);
+    } else {
+      result = await logIn(email, password);
+    }
+    authSubmitBtn.disabled = false;
+    if (result.error){
+      authError.textContent = result.error;
+      authError.style.display = "block";
+      return;
+    }
+    if (result.info){
+      authInfo.textContent = result.info;
+      authInfo.style.display = "block";
+      return;
+    }
+    refreshAuthUI();
+    closeAuthModal();
+    refreshLeaderboardView();
+  });
+
+  /* ---------- leaderboard rendering ---------- */
+  const lbTabStop = document.getElementById("lbTabStop");
+  const lbTabGuess = document.getElementById("lbTabGuess");
+  const lbListStop = document.getElementById("lbListStop");
+  const lbListGuess = document.getElementById("lbListGuess");
+  const lbStatusNote = document.getElementById("lbStatusNote");
+  let lbActiveGame = "stop";
+
+  function renderLeaderboardList(el, rows){
+    if (rows.length === 0){
+      el.innerHTML = '<div class="archive-empty">No scores yet today — be the first!</div>';
+      return;
+    }
+    el.innerHTML = rows.map((r, i) => {
+      const isMe = currentUsername && r.username === currentUsername;
+      return '<div class="lb-row' + (isMe ? ' me' : '') + '">' +
+        '<span class="lb-rank">' + (i + 1) + '</span>' +
+        '<span class="lb-name">' + r.username + (isMe ? ' (you)' : '') + '</span>' +
+        '<span class="lb-score">' + r.timle_score + '</span>' +
+      '</div>';
+    }).join("");
+  }
+
+  async function refreshLeaderboardView(){
+    if (!BACKEND_ENABLED){
+      lbStatusNote.textContent = "Leaderboard needs the backend connected — check back soon.";
+      return;
+    }
+    lbStatusNote.textContent = "Today's top Timle Scores — updates as people finish all 3 rounds.";
+    const [stopRows, guessRows] = await Promise.all([
+      fetchLeaderboard("stop", dateKey),
+      fetchLeaderboard("guess", dateKey)
+    ]);
+    renderLeaderboardList(lbListStop, stopRows);
+    renderLeaderboardList(lbListGuess, guessRows);
+  }
+
+  function selectLbGame(which){
+    lbActiveGame = which;
+    lbTabStop.setAttribute("aria-selected", which === "stop" ? "true" : "false");
+    lbTabGuess.setAttribute("aria-selected", which === "guess" ? "true" : "false");
+    lbListStop.hidden = which !== "stop";
+    lbListGuess.hidden = which !== "guess";
+  }
+  lbTabStop.addEventListener("click", () => selectLbGame("stop"));
+  lbTabGuess.addEventListener("click", () => selectLbGame("guess"));
+
   /* ---------- help modal ---------- */
   const helpBtn = document.getElementById("helpBtn");
   const helpModal = document.getElementById("helpModal");
@@ -1970,10 +2386,15 @@
     if (e.key === "Escape" && helpModal.classList.contains("show")) closeHelp();
   });
 
-  // Auto-show once, on a player's very first visit.
+  // Auto-show once, on a player's very first visit. Independent of
+  // accounts — signing up is only needed for the leaderboard, not to play.
   if (!loadJSON("seen_instructions", false)){
     openHelp();
   }
+
+  // Restore an existing session on page load (async, updates the UI once
+  // it resolves — the game itself doesn't wait on this).
+  restoreSession();
 
   /* initial streak display for default tab */
   refreshStreakDisplay("stop");
