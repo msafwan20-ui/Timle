@@ -36,7 +36,11 @@
     --paper-faint:#565B63;
   }
   *{box-sizing:border-box;}
-  html,body{height:100%;}
+  html,body{
+    height:100%;
+    background:var(--ink);
+    overscroll-behavior-y:none;
+  }
   body{
     margin:0;
     background:
@@ -45,30 +49,42 @@
     font-family:'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing:antialiased;
     display:flex;
-    justify-content:center;
-    min-height:100%;
+    flex-direction:column;
+    align-items:center;
+    min-height:100vh;
+    min-height:100dvh;
   }
   .num{ font-family:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
 
   .wrap{
     width:100%;
-    max-width:480px;
-    padding:22px 20px 48px;
+    max-width:min(96vw, 1100px);
+    padding:
+      0 clamp(16px, 4vw, 56px)
+      calc(28px + env(safe-area-inset-bottom));
     display:flex;
     flex-direction:column;
     align-items:center;
+    justify-content:flex-start;
+    gap:clamp(10px, 2.2vh, 26px);
   }
 
   /* header */
   header{
     width:100%;
+    box-sizing:border-box;
     display:flex;
     align-items:center;
     justify-content:space-between;
-    margin-bottom:6px;
+    padding:
+      calc(16px + env(safe-area-inset-top))
+      calc(16px + env(safe-area-inset-right))
+      0
+      calc(16px + env(safe-area-inset-left));
+    margin-bottom:clamp(10px, 2vh, 22px);
   }
   .wordmark{
-    font-size:20px;
+    font-size:clamp(20px, 2.4vmin, 30px);
     font-weight:700;
     letter-spacing:0.02em;
     color:var(--paper);
@@ -149,19 +165,19 @@
     margin-bottom:8px;
   }
   .target-value{
-    font-size:52px;
+    font-size:clamp(44px, 8vmin, 96px);
     font-weight:500;
     letter-spacing:-0.01em;
     color:var(--paper);
   }
   .target-value .unit{
-    font-size:22px;
+    font-size:clamp(18px, 3vmin, 32px);
     color:var(--paper-dim);
     margin-left:4px;
   }
   .target-value.masked{
     color:var(--paper-faint);
-    font-size:34px;
+    font-size:clamp(28px, 5vmin, 54px);
   }
 
   /* dial */
@@ -173,8 +189,8 @@
   }
   .dial{
     position:relative;
-    width:236px;
-    height:236px;
+    width:clamp(200px, 34vmin, 460px);
+    height:clamp(200px, 34vmin, 460px);
     border-radius:50%;
     background: radial-gradient(circle at 32% 28%, var(--panel-2), var(--panel) 70%);
     border:1px solid var(--green);
@@ -206,13 +222,13 @@
     text-align:center;
   }
   .dial-readout{
-    font-size:34px;
+    font-size:clamp(28px, 5vmin, 58px);
     font-weight:500;
     letter-spacing:0.02em;
     color:var(--paper-faint);
   }
   .dial-hint{
-    font-size:13px;
+    font-size:clamp(12px, 1.6vmin, 16px);
     color:var(--paper-dim);
   }
 
@@ -238,14 +254,14 @@
     border-color: var(--mint-soft);
     box-shadow: 0 0 0 10px var(--mint-soft);
   }
-  .dial.beeped .dial-readout{ color:var(--mint); font-size:26px; letter-spacing:0; }
+  .dial.beeped .dial-readout{ color:var(--mint); font-size:clamp(20px, 3.6vmin, 40px); letter-spacing:0; }
 
   .dial.done{
     cursor:default;
     border-color: var(--line);
   }
   .dial.done .dial-readout{
-    font-size:30px;
+    font-size:clamp(24px, 4.4vmin, 48px);
     color:var(--paper);
   }
 
@@ -307,7 +323,7 @@
     border:1px solid var(--line);
     border-radius:16px;
     background:var(--panel);
-    padding:22px;
+    padding:clamp(20px, 3vmin, 34px);
     display:none;
   }
   .result.show{ display:block; }
@@ -731,40 +747,28 @@
     *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
   }
 
-  /* ---------- responsive scale-up for larger viewports ---------- */
-  @media (min-width: 640px){
-    .wrap{ max-width:560px; padding-top:40px; }
-    .wordmark{ font-size:22px; }
-    .target-value{ font-size:60px; }
-    .dial{ width:272px; height:272px; }
-    .dial-readout{ font-size:38px; }
-    .result{ padding:26px; }
+  /* ---------- fine-tuning for short/tall viewports ---------- */
+  @media (max-height: 700px){
+    .wrap{ gap:clamp(6px, 1.4vh, 16px); }
   }
-
-  @media (min-width: 1024px){
-    body{ align-items:flex-start; padding-top:5vh; }
-    .wrap{ max-width:620px; padding-top:0; }
-    .wordmark{ font-size:24px; }
-    .target-value{ font-size:68px; }
-    .dial{ width:312px; height:312px; }
-    .dial-readout{ font-size:42px; }
-    .tabbar{ margin-top:32px; }
+  @media (min-width: 900px){
+    .modal-card{ max-width:520px; }
   }
 </style>
 </head>
 <body>
+<header>
+  <div class="wordmark">Ti<span>ml</span>e</div>
+  <div class="header-right">
+    <button class="help-btn" id="helpBtn" aria-label="How to play">?</button>
+    <div class="streak-pill" id="streakPill">
+      <span class="streak-flame" id="streakFlame">●</span>
+      <b id="streakCount">0</b>&nbsp;streak
+    </div>
+  </div>
+</header>
 <div class="wrap">
 
-  <header>
-    <div class="wordmark">Ti<span>ml</span>e</div>
-    <div class="header-right">
-      <button class="help-btn" id="helpBtn" aria-label="How to play">?</button>
-      <div class="streak-pill" id="streakPill">
-        <span class="streak-flame" id="streakFlame">●</span>
-        <b id="streakCount">0</b>&nbsp;streak
-      </div>
-    </div>
-  </header>
   <div class="puzzle-no" id="puzzleNo">Puzzle #—</div>
 
   <div class="tabbar" role="tablist" aria-label="Choose a daily game">
@@ -870,7 +874,7 @@
     </div>
 
     <div class="guess-form" id="g_guessForm">
-      <input class="guess-input" id="g_guessInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="seconds, e.g. 7.4" autocomplete="off">
+      <input class="guess-input" id="g_guessInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="seconds, e.g. 7.40" autocomplete="off">
       <button class="btn-submit" id="g_submitBtn" disabled>Submit</button>
     </div>
 
@@ -1014,30 +1018,38 @@
   // archive access exist, without touching any of the calling code.
   function userHasArchiveAccess(){ return true; }
 
-  const TIERS = [
-    { key: "frozen", label: "Frozen",  max: 15  },
-    { key: "sharp",  label: "Sharp",   max: 60  },
-    { key: "close",  label: "Close",   max: 200 },
-    { key: "off",    label: "Off",     max: 500 },
-    { key: "missed", label: "Missed",  max: Infinity }
-  ];
-  function tierFor(diffMs){
-    for (const t of TIERS){ if (diffMs <= t.max) return t; }
-    return TIERS[TIERS.length - 1];
+  // Difficulty-adjusted tiers: how far off you were AS A PERCENTAGE of the
+  // target/actual duration, not raw milliseconds. Being 50ms off a 2s
+  // target (2.5% error) is genuinely harder than 50ms off a 12s target
+  // (0.4% error) — this keeps every round's difficulty on equal footing,
+  // regardless of how long that round's target happened to be.
+  const TIER_ORDER = ["frozen", "sharp", "close", "off", "missed"];
+  const TIER_LABELS = { frozen: "Frozen", sharp: "Sharp", close: "Close", off: "Off", missed: "Missed", perfect: "Perfect!" };
+  const TIER_PCT_MAX = { frozen: 0.3, sharp: 1.5, close: 5, off: 17 }; // % error; anything above "off" is "missed"
+
+  function relativePct(diffMs, refMs){
+    return (diffMs / Math.max(1, refMs)) * 100;
+  }
+  function tierKeyForError(diffMs, refMs){
+    const pct = relativePct(diffMs, refMs);
+    if (pct <= TIER_PCT_MAX.frozen) return "frozen";
+    if (pct <= TIER_PCT_MAX.sharp)  return "sharp";
+    if (pct <= TIER_PCT_MAX.close)  return "close";
+    if (pct <= TIER_PCT_MAX.off)    return "off";
+    return "missed";
   }
   // True win condition: your time rounds to the exact same hundredth as
   // the actual/target value. Distinct from — and better than — "Frozen."
   function isExactWin(yourVal, targetVal){
     return Math.round(yourVal * 100) === Math.round(targetVal * 100);
   }
-  function tierForResult(diffMs, exact){
-    if (exact) return { key: "perfect", label: "Perfect!", max: 0 };
-    return tierFor(diffMs);
+  function tierKeyForResult(diffMs, refMs, exact){
+    return exact ? "perfect" : tierKeyForError(diffMs, refMs);
   }
   function tierRank(key){
     if (key === "perfect") return 5;
-    const idx = TIERS.findIndex(t => t.key === key);
-    return TIERS.length - idx;
+    const idx = TIER_ORDER.indexOf(key);
+    return TIER_ORDER.length - idx;
   }
   function tierEmoji(key){
     switch(key){
@@ -1046,8 +1058,20 @@
       case "sharp":  return "🎯";
       case "close":  return "🟠";
       case "off":    return "🟡";
-      default:       return "⬜";
+      default:       return "❌";
     }
+  }
+  // res.tierKey is decided once, at the moment the round finishes — every
+  // later display (result screen, day summary, share text) just looks up
+  // its label rather than re-deriving it, so it can never disagree with
+  // itself even for older stored results.
+  function tierLabelForResult(res){
+    return TIER_LABELS[res.tierKey] || "Missed";
+  }
+  // Legacy stored results (before this update) won't have refMs saved —
+  // fall back to a reasonable mid-range target so old rows don't NaN out.
+  function refMsOf(res){
+    return res.refMs || 7000;
   }
   function renderGauge(el, tierKey){
     const rank = tierRank(tierKey);
@@ -1061,24 +1085,42 @@
       el.appendChild(seg);
     }
   }
-  // Estimated percentile from timing error, modeled on typical human timing
-  // accuracy. Used as an immediate fallback before real data loads, and
-  // whenever there aren't enough players yet for a real percentile to mean
-  // anything.
-  function estimatedPercentile(diffMs){
-    const p = 100 * Math.exp(-diffMs / 300);
+  // Estimated percentile from RELATIVE timing error (% of target), modeled
+  // on typical human timing accuracy at that difficulty. Used as an
+  // immediate fallback before real data loads, and whenever there aren't
+  // enough players yet for a real percentile to mean anything.
+  function estimatedPercentile(diffMs, refMs){
+    const pct = relativePct(diffMs, refMs);
+    const p = 100 * Math.exp(-pct / 6);
     return Math.round(Math.max(1, Math.min(99, p)));
+  }
+  // Same idea, but for a result already reduced to a plain % error number
+  // (used when averaging across rounds with different target lengths).
+  function percentileFromPct(pct){
+    const p = 100 * Math.exp(-pct / 6);
+    return Math.round(Math.max(1, Math.min(99, p)));
+  }
+  function pctErrorOfResult(res){
+    return res.tierKey === "perfect" ? 0 : relativePct(res.diffMs, refMsOf(res));
+  }
+  // Plain-language accuracy for the round breakdown — most people don't
+  // have an intuition for "off by 1061ms," but "88% accurate" reads
+  // instantly. 100% = exact match, decays with relative error, floors at 0.
+  function accuracyPctOfResult(res){
+    return Math.max(0, Math.round(100 - pctErrorOfResult(res)));
   }
 
   // Timle Score: a single 0–1000 number for the day, split evenly across
-  // the 3 rounds (~333.3 pts each). Same decay curve as the percentile
-  // estimate, for consistency — but a "Perfect" round always earns its
-  // full share, since exact matches are the whole point.
+  // the 3 rounds (~333.3 pts each), using each round's RELATIVE error so
+  // a hard, long-duration round and an easy, short one are judged fairly
+  // against each other — a "Perfect" round always earns its full share.
   function computeTimleScore(results){
     const maxShare = 1000 / results.length;
     let total = 0;
     results.forEach(res => {
-      total += (res.tierKey === "perfect") ? maxShare : maxShare * Math.exp(-res.diffMs / 300);
+      if (res.tierKey === "perfect"){ total += maxShare; return; }
+      const pct = relativePct(res.diffMs, refMsOf(res));
+      total += maxShare * Math.exp(-pct / 6);
     });
     return Math.max(0, Math.min(1000, Math.round(total)));
   }
@@ -1420,12 +1462,13 @@
       let html = "";
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        const label = res.tierKey === "perfect" ? "Perfect!" : tierFor(res.diffMs).label;
+        const label = tierLabelForResult(res);
+        const acc = accuracyPctOfResult(res);
         const t = roundTarget("stop", r, activeDate);
-        html += '<div class="day-summary-row"><span>Round ' + r + ' (' + formatTargetValue(r, t) + 's)</span><b>' + label + ' · ' + res.diffMs + 'ms</b></div>';
+        html += '<div class="day-summary-row"><span>Round ' + r + ' (' + formatTargetValue(r, t) + 's) &nbsp;' + tierEmoji(res.tierKey) + ' ' + label + '</span><b>' + acc + '% accurate</b></div>';
       }
-      const avgDiff = (results[0].diffMs + results[1].diffMs + results[2].diffMs) / 3;
-      const compositePct = estimatedPercentile(avgDiff);
+      const avgPct = (pctErrorOfResult(results[0]) + pctErrorOfResult(results[1]) + pctErrorOfResult(results[2])) / 3;
+      const compositePct = percentileFromPct(avgPct);
       const timleScore = computeTimleScore(results);
       const bestScoreData = loadJSON("stop_score_best", { score: null });
       if (bestScoreData.score === null || timleScore > bestScoreData.score){
@@ -1451,7 +1494,7 @@
 
     function renderResult(res, r){
       const exact = res.tierKey === "perfect";
-      const tierObj = exact ? { key: "perfect", label: "Perfect!" } : tierFor(res.diffMs);
+      const tierObj = { key: res.tierKey, label: tierLabelForResult(res) };
       tierNameEl.textContent = tierObj.label;
       tierNameEl.className = "result-tier-name " + tierObj.key;
       diffMsEl.textContent = res.diffMs;
@@ -1461,7 +1504,7 @@
       const best = loadJSON(bestKey, { diffMs: null });
       rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
       renderGauge(gaugeEl, tierObj.key);
-      pctNumEl.textContent = estimatedPercentile(res.diffMs);
+      pctNumEl.textContent = estimatedPercentile(res.diffMs, res.refMs);
       percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
       startCountdown(nextInEl);
@@ -1498,6 +1541,7 @@
       const yourTime = elapsedMs / 1000;
       const diffMs = Math.round(Math.abs(elapsedMs - target * 1000));
       const exact = isExactWin(yourTime, target);
+      const refMs = target * 1000;
       state = "done";
       playTone(880, 0.15);
 
@@ -1507,7 +1551,7 @@
         saveJSON(bestKey, { diffMs: diffMs });
       }
 
-      const res = { yourTime, diffMs, tierKey: exact ? "perfect" : tierFor(diffMs).key, playedAt: Date.now() };
+      const res = { yourTime, diffMs, refMs, tierKey: tierKeyForResult(diffMs, refMs, exact), playedAt: Date.now() };
       const r = currentRound;
       results[r - 1] = res;
       saveJSON(roundResultKey("stop", r, activeDate), res);
@@ -1534,13 +1578,16 @@
     });
 
     function buildShareText(){
-      const lines = ["Timle #" + puzzleNumberFor(activeDate) + " Stop It"];
+      const lines = ["⏱️ Timle #" + puzzleNumberFor(activeDate) + " — Stop It", ""];
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        lines.push("R" + r + " " + tierEmoji(res.tierKey) + " Δ" + res.diffMs + "ms");
+        lines.push("R" + r + "  " + tierEmoji(res.tierKey) + " " + tierLabelForResult(res) + "  ·  Δ" + res.diffMs + "ms");
       }
-      lines.push("Score: " + computeTimleScore(results) + "/1000");
-      lines.push("Streak: " + window.stopStreak.count);
+      lines.push("");
+      lines.push("Score:  " + computeTimleScore(results) + "/1000");
+      lines.push("Streak: 🔥 " + window.stopStreak.count);
+      lines.push("");
+      lines.push("Play: timle.games");
       return lines.join("\n");
     }
     shareBtn.addEventListener("click", async function(){
@@ -1584,7 +1631,7 @@
         dialHint.textContent = "today's rounds";
         tapInstruction.textContent = activeDate === dateKey ? "Come back tomorrow for new rounds." : "You've completed this archived puzzle.";
         const res3 = results[2];
-        const tierObj = res3.tierKey === "perfect" ? { key: "perfect", label: "Perfect!" } : tierFor(res3.diffMs);
+        const tierObj = { key: res3.tierKey, label: tierLabelForResult(res3) };
         tierNameEl.textContent = tierObj.label;
         tierNameEl.className = "result-tier-name " + tierObj.key;
         diffMsEl.textContent = res3.diffMs;
@@ -1593,7 +1640,7 @@
         const best3 = loadJSON(roundBestKey("stop", 3), { diffMs: null });
         rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
         renderGauge(gaugeEl, tierObj.key);
-        pctNumEl.textContent = estimatedPercentile(res3.diffMs);
+        pctNumEl.textContent = estimatedPercentile(res3.diffMs, res3.refMs);
         resultEl.classList.add("show");
         startCountdown(nextInEl);
         renderDaySummary();
@@ -1697,11 +1744,12 @@
       let html = "";
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        const label = res.tierKey === "perfect" ? "Perfect!" : tierFor(res.diffMs).label;
-        html += '<div class="day-summary-row"><span>Round ' + r + '</span><b>' + label + ' · ' + res.diffMs + 'ms</b></div>';
+        const label = tierLabelForResult(res);
+        const acc = accuracyPctOfResult(res);
+        html += '<div class="day-summary-row"><span>Round ' + r + ' &nbsp;' + tierEmoji(res.tierKey) + ' ' + label + '</span><b>' + acc + '% accurate</b></div>';
       }
-      const avgDiff = (results[0].diffMs + results[1].diffMs + results[2].diffMs) / 3;
-      const compositePct = estimatedPercentile(avgDiff);
+      const avgPct = (pctErrorOfResult(results[0]) + pctErrorOfResult(results[1]) + pctErrorOfResult(results[2])) / 3;
+      const compositePct = percentileFromPct(avgPct);
       const timleScore = computeTimleScore(results);
       const bestScoreData = loadJSON("guess_score_best", { score: null });
       if (bestScoreData.score === null || timleScore > bestScoreData.score){
@@ -1727,7 +1775,7 @@
 
     function renderResult(res, r){
       const exact = res.tierKey === "perfect";
-      const tierObj = exact ? { key: "perfect", label: "Perfect!" } : tierFor(res.diffMs);
+      const tierObj = { key: res.tierKey, label: tierLabelForResult(res) };
       tierNameEl.textContent = tierObj.label;
       tierNameEl.className = "result-tier-name " + tierObj.key;
       diffMsEl.textContent = res.diffMs;
@@ -1737,7 +1785,7 @@
       const best = loadJSON(bestKey, { diffMs: null });
       rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
       renderGauge(gaugeEl, tierObj.key);
-      pctNumEl.textContent = estimatedPercentile(res.diffMs);
+      pctNumEl.textContent = estimatedPercentile(res.diffMs, res.refMs);
       percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
       startCountdown(nextInEl);
@@ -1792,6 +1840,7 @@
       const guessMs = val * 1000;
       const diffMs = Math.round(Math.abs(guessMs - actualElapsedMs));
       const exact = isExactWin(val, actualElapsedMs / 1000);
+      const refMs = actualElapsedMs;
       state = "done";
 
       const bestKey = roundBestKey("guess", currentRound);
@@ -1800,7 +1849,7 @@
         saveJSON(bestKey, { diffMs: diffMs });
       }
 
-      const res = { guessSeconds: val, actualMs: actualElapsedMs, diffMs, tierKey: exact ? "perfect" : tierFor(diffMs).key, playedAt: Date.now() };
+      const res = { guessSeconds: val, actualMs: actualElapsedMs, diffMs, refMs, tierKey: tierKeyForResult(diffMs, refMs, exact), playedAt: Date.now() };
       const r = currentRound;
       results[r - 1] = res;
       saveJSON(roundResultKey("guess", r, activeDate), res);
@@ -1831,13 +1880,16 @@
     });
 
     function buildShareText(){
-      const lines = ["Timle #" + puzzleNumberFor(activeDate) + " Guess It"];
+      const lines = ["🔔 Timle #" + puzzleNumberFor(activeDate) + " — Guess It", ""];
       for (let r = 1; r <= ROUND_COUNT; r++){
         const res = results[r - 1];
-        lines.push("R" + r + " " + tierEmoji(res.tierKey) + " Δ" + res.diffMs + "ms");
+        lines.push("R" + r + "  " + tierEmoji(res.tierKey) + " " + tierLabelForResult(res) + "  ·  Δ" + res.diffMs + "ms");
       }
-      lines.push("Score: " + computeTimleScore(results) + "/1000");
-      lines.push("Streak: " + window.guessStreak.count);
+      lines.push("");
+      lines.push("Score:  " + computeTimleScore(results) + "/1000");
+      lines.push("Streak: 🔥 " + window.guessStreak.count);
+      lines.push("");
+      lines.push("Play: timle.games");
       return lines.join("\n");
     }
     shareBtn.addEventListener("click", async function(){
@@ -1872,7 +1924,7 @@
         dialHint.textContent = "today's rounds";
         tapInstruction.textContent = activeDate === dateKey ? "Come back tomorrow for new rounds." : "You've completed this archived puzzle.";
         const res3 = results[2];
-        const tierObj = res3.tierKey === "perfect" ? { key: "perfect", label: "Perfect!" } : tierFor(res3.diffMs);
+        const tierObj = { key: res3.tierKey, label: tierLabelForResult(res3) };
         tierNameEl.textContent = tierObj.label;
         tierNameEl.className = "result-tier-name " + tierObj.key;
         diffMsEl.textContent = res3.diffMs;
@@ -1881,7 +1933,7 @@
         const best3 = loadJSON(roundBestKey("guess", 3), { diffMs: null });
         rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
         renderGauge(gaugeEl, tierObj.key);
-        pctNumEl.textContent = estimatedPercentile(res3.diffMs);
+        pctNumEl.textContent = estimatedPercentile(res3.diffMs, res3.refMs);
         resultEl.classList.add("show");
         startCountdown(nextInEl);
         renderDaySummary();
