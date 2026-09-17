@@ -1369,6 +1369,7 @@
 
   let currentUser = null;      // { id, email } once signed in
   let currentUsername = null;  // from the profiles table
+  let authEstablished = false; // true once signup/login/restore has set state, so later checks don't clobber it
 
   async function fetchMyUsername(userId){
     try{
@@ -1382,38 +1383,25 @@
   }
 
   async function signUp(username, email, password){
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    if (error) return { error: error.message };
-    if (!data.user) return { error: "Signup failed — please try again." };
-
-    // Create the profile row (username <-> user id link).
-    try{
-      const res = await fetch(SUPABASE_URL + "/rest/v1/profiles", {
-        method: "POST",
-        headers: {
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization": "Bearer " + (data.session ? data.session.access_token : SUPABASE_ANON_KEY),
-          "Content-Type": "application/json",
-          "Prefer": "return=minimal"
-        },
-        body: JSON.stringify({ id: data.user.id, username: username })
-      });
-      if (!res.ok){
-        const body = await res.text();
-        if (body.indexOf("duplicate") !== -1 || body.indexOf("unique") !== -1){
-          return { error: "That username is already taken." };
-        }
-        return { error: "Account created, but the username couldn't be saved. Try logging in." };
+    const { data, error } = await supabaseClient.auth.signUp({
+      email, password,
+      options: { data: { username: username } }
+    });
+    if (error){
+      const msg = error.message || "";
+      if (msg.toLowerCase().indexOf("database") !== -1){
+        return { error: "That username might already be taken — try a different one." };
       }
-    }catch(e){
-      return { error: "Account created, but the username couldn't be saved. Try logging in." };
+      return { error: msg };
     }
+    if (!data.user) return { error: "Signup failed — please try again." };
 
     if (!data.session){
       return { info: "Account created! Check your email to confirm, then log in." };
     }
     currentUser = { id: data.user.id, email: data.user.email };
     currentUsername = username;
+    authEstablished = true;
     return { success: true };
   }
 
@@ -1422,6 +1410,7 @@
     if (error) return { error: error.message };
     currentUser = { id: data.user.id, email: data.user.email };
     currentUsername = await fetchMyUsername(data.user.id);
+    authEstablished = true;
     return { success: true };
   }
 
@@ -1429,12 +1418,17 @@
     await supabaseClient.auth.signOut();
     currentUser = null;
     currentUsername = null;
+    authEstablished = true; // a deliberate logout is also a settled state — don't let a stale restore override it
     refreshAuthUI();
   }
 
   async function restoreSession(){
     if (!supabaseClient) return;
     const { data } = await supabaseClient.auth.getSession();
+    // If signup/login/logout already happened during this page load, that's
+    // more current than this check (which only exists to find a session
+    // from a PREVIOUS visit) — don't stomp on it.
+    if (authEstablished) return;
     if (data.session && data.session.user){
       currentUser = { id: data.session.user.id, email: data.session.user.email };
       currentUsername = await fetchMyUsername(data.session.user.id);
