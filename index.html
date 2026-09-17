@@ -1154,6 +1154,7 @@
   const TIER_PCT_MAX = { frozen: 0.3, sharp: 1.5, close: 5, off: 17 }; // % error; anything above "off" is "missed"
 
   function relativePct(diffMs, refMs){
+    if (!refMs || isNaN(diffMs) || isNaN(refMs)) return 100; // treat as a big miss, never NaN
     return (diffMs / Math.max(1, refMs)) * 100;
   }
   function tierKeyForError(diffMs, refMs){
@@ -1765,7 +1766,7 @@
       const best = loadJSON(bestKey, { diffMs: null });
       rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
       renderGauge(gaugeEl, tierObj.key);
-      pctNumEl.textContent = estimatedPercentile(res.diffMs, res.refMs);
+      pctNumEl.textContent = estimatedPercentile(res.diffMs, refMsOf(res));
       percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
       startCountdown(nextInEl);
@@ -1901,7 +1902,7 @@
         const best3 = loadJSON(roundBestKey("stop", 3), { diffMs: null });
         rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
         renderGauge(gaugeEl, tierObj.key);
-        pctNumEl.textContent = estimatedPercentile(res3.diffMs, res3.refMs);
+        pctNumEl.textContent = estimatedPercentile(res3.diffMs, refMsOf(res3));
         resultEl.classList.add("show");
         startCountdown(nextInEl);
         renderDaySummary();
@@ -2049,7 +2050,7 @@
       const best = loadJSON(bestKey, { diffMs: null });
       rowBest.textContent = (best.diffMs !== null ? best.diffMs + " ms" : "—");
       renderGauge(gaugeEl, tierObj.key);
-      pctNumEl.textContent = estimatedPercentile(res.diffMs, res.refMs);
+      pctNumEl.textContent = estimatedPercentile(res.diffMs, refMsOf(res));
       percentileNoteEl.textContent = "Estimated from typical timing accuracy — live leaderboard coming soon.";
       resultEl.classList.add("show");
       startCountdown(nextInEl);
@@ -2197,7 +2198,7 @@
         const best3 = loadJSON(roundBestKey("guess", 3), { diffMs: null });
         rowBest.textContent = (best3.diffMs !== null ? best3.diffMs + " ms" : "—");
         renderGauge(gaugeEl, tierObj.key);
-        pctNumEl.textContent = estimatedPercentile(res3.diffMs, res3.refMs);
+        pctNumEl.textContent = estimatedPercentile(res3.diffMs, refMsOf(res3));
         resultEl.classList.add("show");
         startCountdown(nextInEl);
         renderDaySummary();
